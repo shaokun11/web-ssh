@@ -8,16 +8,15 @@ interface Props {
   onClose: () => void;
   initialConfig?: SSHConfig | null;
   onConnect: (config: SSHConfig) => void;
+  mode?: 'new' | 'edit' | 'copy';
 }
 
-type AuthMethod = 'key' | 'password';
-
-export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
+export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new' }: Props) {
   const [name, setName] = useState(initialConfig?.name || '');
   const [host, setHost] = useState(initialConfig?.host || '');
   const [port, setPort] = useState(String(initialConfig?.port || 22));
   const [username, setUsername] = useState(initialConfig?.username || '');
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('key');
+  const [authMethod, setAuthMethod] = useState<'key' | 'password'>('key');
   const [privateKey, setPrivateKey] = useState(initialConfig?.privateKey || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -36,7 +35,41 @@ export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
     }
   }, [initialConfig]);
 
-  const handleConnect = async () => {
+  const getTitle = () => {
+    switch (mode) {
+      case 'edit':
+        return `编辑 ${initialConfig?.name || '配置'}`;
+      case 'copy':
+        return '复制并新建连接';
+      default:
+        return '新建 SSH 连接';
+    }
+  };
+
+  const getSubtitle = () => {
+    switch (mode) {
+      case 'edit':
+        return '修改连接配置';
+      case 'copy':
+        return '基于现有配置创建新连接';
+      default:
+        return '输入服务器信息以建立连接';
+    }
+  };
+
+  const getButtonText = () => {
+    if (loading) return '处理中...';
+    switch (mode) {
+      case 'edit':
+        return '保存';
+      case 'copy':
+        return '创建并连接';
+      default:
+        return '连接';
+    }
+  };
+
+  const handleSave = async (connect: boolean = true) => {
     if (!host || !username) {
       setError('请填写主机地址和用户名');
       return;
@@ -55,8 +88,9 @@ export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
     setLoading(true);
     setError('');
 
+    const configId = (mode === 'edit' && initialConfig?.id) || generateId();
     const config: SSHConfig = {
-      id: initialConfig?.id || generateId(),
+      id: configId,
       name: name || `${username}@${host}`,
       host,
       port: parseInt(port) || 22,
@@ -69,61 +103,67 @@ export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
 
     try {
       // Save to database
-      if (initialConfig) {
+      if (mode === 'edit') {
         await db.configs.update(config.id, config);
       } else {
         await db.configs.add(config);
         addConfig(config);
       }
 
-      // Connect via WebSocket
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-      const ws = new WebSocket(wsUrl);
+      if (connect) {
+        // Connect via WebSocket
+        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+        const ws = new WebSocket(wsUrl);
 
-      ws.onopen = () => {
-        ws.send(JSON.stringify({
-          type: 'connect',
-          data: {
-            host: config.host,
-            port: config.port,
-            username: config.username,
-            privateKey: config.privateKey,
-          }
-        }));
-      };
+        ws.onopen = () => {
+          ws.send(JSON.stringify({
+            type: 'connect',
+            data: {
+              host: config.host,
+              port: config.port,
+              username: config.username,
+              privateKey: config.privateKey,
+            }
+          }));
+        };
 
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data);
-          if (msg.type === 'connected') {
-            if ((msg.data as { success: boolean }).success) {
-              setWs(ws);
-              setConnected(true);
-              setCurrentConfig(config);
-              setLoading(false);
-              onConnect(config);
-              onClose();
-            } else {
-              setError('连接失败');
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            if (msg.type === 'connected') {
+              if ((msg.data as { success: boolean }).success) {
+                setWs(ws);
+                setConnected(true);
+                setCurrentConfig(config);
+                setLoading(false);
+                onConnect(config);
+                onClose();
+              } else {
+                setError('连接失败');
+                setLoading(false);
+                ws.close();
+              }
+            } else if (msg.type === 'error') {
+              setError((msg.data as { message: string }).message);
               setLoading(false);
               ws.close();
             }
-          } else if (msg.type === 'error') {
-            setError((msg.data as { message: string }).message);
-            setLoading(false);
-            ws.close();
+          } catch {
+            // Ignore parse errors
           }
-        } catch {
-          // Ignore parse errors
-        }
-      };
+        };
 
-      ws.onerror = () => {
-        setError('WebSocket 连接失败');
+        ws.onerror = () => {
+          setError('WebSocket 连接失败');
+          setLoading(false);
+        };
+      } else {
+        // Just save, don't connect
         setLoading(false);
-      };
+        onClose();
+      }
     } catch (err) {
-      setError('连接失败');
+      setError('操作失败');
       setLoading(false);
     }
   };
@@ -150,10 +190,8 @@ export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3 className="modal-title">
-              {initialConfig ? `连接到 ${initialConfig.name}` : '新建 SSH 连接'}
-            </h3>
-            <p className="modal-subtitle">输入服务器信息以建立连接</p>
+            <h3 className="modal-title">{getTitle()}</h3>
+            <p className="modal-subtitle">{getSubtitle()}</p>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
@@ -273,8 +311,21 @@ export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>
             取消
           </button>
-          <button className="btn btn-success" onClick={handleConnect} disabled={loading}>
-            {loading ? '连接中...' : '连接'}
+          {mode === 'edit' && (
+            <button
+              className="btn btn-ghost"
+              onClick={() => handleSave(false)}
+              disabled={loading}
+            >
+              仅保存
+            </button>
+          )}
+          <button
+            className={`btn ${mode === 'edit' ? 'btn-primary' : 'btn-success'}`}
+            onClick={() => handleSave(true)}
+            disabled={loading}
+          >
+            {getButtonText()}
           </button>
         </div>
       </div>

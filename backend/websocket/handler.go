@@ -115,8 +115,11 @@ func readOutput(session *ssh.Session, conn *websocket.Conn) {
 			return
 		}
 		if n > 0 {
-			// Send raw output directly - xterm.js handles escape sequences
-			conn.WriteMessage(websocket.TextMessage, buf[:n])
+			// Use BinaryMessage to preserve escape sequences exactly
+			// Make a copy of the data to avoid race conditions
+			data := make([]byte, n)
+			copy(data, buf[:n])
+			conn.WriteMessage(websocket.BinaryMessage, data)
 		}
 	}
 }

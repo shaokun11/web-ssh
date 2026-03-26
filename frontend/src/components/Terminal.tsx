@@ -135,9 +135,16 @@ export function Terminal() {
 
     // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
-      // Raw output - write directly to terminal
+      // Handle binary messages (terminal output)
+      if (event.data instanceof ArrayBuffer) {
+        const decoder = new TextDecoder('utf-8');
+        const output = decoder.decode(event.data);
+        xterm.write(output);
+        return;
+      }
+
+      // Handle text messages (control messages)
       if (typeof event.data === 'string') {
-        // Try to parse as JSON for control messages
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'error') {
@@ -155,9 +162,8 @@ export function Terminal() {
               }
             }
           }
-          // Other JSON messages are ignored (output comes as raw text)
         } catch {
-          // Not JSON - it's raw terminal output, write directly
+          // Fallback: treat as raw output
           xterm.write(event.data);
         }
       }

@@ -168,3 +168,94 @@
   background: #ff3333;
   transform: scale(1.02);
 }
+
+/* Connection Item Actions */
+.connection-item-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.connection-item:hover .connection-item-actions {
+  opacity: 1;
+}
+
+.connection-item-action {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.connection-item-action:hover {
+  background: var(--bg-tertiary);
+}
+
+.connection-item-action.delete:hover {
+  background: var(--color-red);
+}
+
+/* Connection Item Active State */
+.connection-item.connected {
+  background: rgba(80, 250, 123, 0.1);
+  border-color: var(--color-green);
+}
+
+.connection-item-info {
+  flex: 1;
+  min-width: 0;
+  margin-left: 10px;
+}
+
+.connection-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.connection-item-detail {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Form styles */
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group.flex-1 {
+  flex: 1;
+}
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-required {
+  color: var(--color-red);
+}
+
+.form-optional {
+  color: var(--text-muted);
+  font-weight: 400;
+}
