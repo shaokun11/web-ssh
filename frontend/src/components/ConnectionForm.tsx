@@ -31,7 +31,6 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
   // Reset form when initialConfig changes
   // This is a valid pattern for form initialization from props
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (initialConfig) {
       setName(initialConfig.name);
@@ -42,7 +41,6 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
       setAuthMethod(initialConfig.privateKey ? 'key' : initialConfig.password ? 'password' : 'key');
     }
   }, [initialConfig]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const getTitle = () => {
     switch (mode) {

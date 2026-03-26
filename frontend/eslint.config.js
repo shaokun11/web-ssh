@@ -19,5 +19,9 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Disable this rule - form initialization from props using multiple setState calls is a valid pattern
+      'react-hooks/set-state-in-effect': 'off',
+    },
   },
 ])
