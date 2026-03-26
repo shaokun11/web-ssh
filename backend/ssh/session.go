@@ -22,7 +22,7 @@ func (s *Session) Read(buf []byte) (int, error) {
 }
 
 func (s *Session) Resize(cols, rows int) error {
-	return s.session.WindowChange(rows, cols)
+	return s.session.WindowChange(rows, cols) // WindowChange expects (rows, cols)
 }
 
 func (s *Session) Close() error {

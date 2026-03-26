@@ -115,11 +115,13 @@ func readOutput(session *ssh.Session, conn *websocket.Conn) {
 			return
 		}
 		if n > 0 {
-			sendOutput(conn, string(buf[:n]))
+			// Send raw output directly - xterm.js handles escape sequences
+			conn.WriteMessage(websocket.TextMessage, buf[:n])
 		}
 	}
 }
 
+// Keep sendOutput for reference but not used
 func sendOutput(conn *websocket.Conn, output string) {
 	data, _ := json.Marshal(Message{
 		Type: TypeOutput,

@@ -135,41 +135,29 @@ export function Terminal() {
 
     // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
-      try {
-        // Check if it's binary data (raw SSH output)
-        if (event.data instanceof ArrayBuffer) {
-          const decoder = new TextDecoder();
-          const output = decoder.decode(event.data);
-          xterm.write(output);
-          return;
-        }
-
+      // Raw output - write directly to terminal
+      if (typeof event.data === 'string') {
         // Try to parse as JSON for control messages
-        const msg = JSON.parse(event.data);
-
-        if (msg.type === 'output') {
-          // Output from SSH session
-          const output = msg.data?.output || '';
-          xterm.write(output);
-        } else if (msg.type === 'error') {
-          // Error message
-          xterm.writeln('');
-          xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
-        } else if (msg.type === 'connected') {
-          // Connected successfully - send terminal size
-          if (fitAddon) {
-            const dims = fitAddon.proposeDimensions();
-            if (dims) {
-              ws.send(JSON.stringify({
-                type: 'resize',
-                data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
-              }));
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'error') {
+            xterm.writeln('');
+            xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
+          } else if (msg.type === 'connected') {
+            // Connected successfully - send terminal size
+            if (fitAddon) {
+              const dims = fitAddon.proposeDimensions();
+              if (dims) {
+                ws.send(JSON.stringify({
+                  type: 'resize',
+                  data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
+                }));
+              }
             }
           }
-        }
-      } catch {
-        // If not JSON, treat as raw output
-        if (typeof event.data === 'string') {
+          // Other JSON messages are ignored (output comes as raw text)
+        } catch {
+          // Not JSON - it's raw terminal output, write directly
           xterm.write(event.data);
         }
       }
