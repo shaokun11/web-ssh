@@ -72,17 +72,25 @@
 }
 
 .tab-status-dot[data-status="connecting"] {
-  background-color: var(--color-yellow);
-  animation: pulse 1s infinite;
+  background-color: var(--color-orange);
+  animation: pulse-dot 1s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--color-orange);
 }
 
 .tab-status-dot[data-status="disconnected"] {
   background-color: var(--color-red);
+  box-shadow: 0 0 4px rgba(255, 85, 85, 0.3);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
 }
 
 .tab-title {

@@ -100,3 +100,75 @@
   color: var(--color-green);
   font-weight: 500;
 }
+
+/* Quick Commands Section */
+.quick-commands {
+  margin-top: 40px;
+  width: 100%;
+  max-width: 800px;
+}
+
+.quick-commands-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  text-align: left;
+  padding-left: 4px;
+}
+
+.quick-commands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.quick-command-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.quick-command-card:hover {
+  border-color: var(--color-purple);
+  box-shadow: var(--shadow-sm);
+}
+
+.cmd-icon {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.cmd-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.cmd-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.cmd-list code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--color-cyan);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.cmd-list code:hover {
+  background: var(--color-purple);
+  color: white;
+  border-color: var(--color-purple);
+}
