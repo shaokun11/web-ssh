@@ -87,7 +87,7 @@ const commandCategories = [
 export function QuickCommandsPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const { sessions, configs } = useConnectionStore();
+  const { sessions, configs, activeSessionId } = useConnectionStore();
   const { globalHistory, loadAllHistory, filterConfigId, setFilter, histories } = useHistoryStore();
 
   // Load history on mount
@@ -110,14 +110,10 @@ export function QuickCommandsPanel() {
     // Copy to clipboard
     navigator.clipboard.writeText(cmd);
 
-    // If there's an active session, also send the command
-    const activeSessionId = [...sessions.keys()].find(
-      id => sessions.get(id)?.status === 'connected'
-    );
-
+    // Send to currently active session (the selected tab)
     if (activeSessionId) {
       const session = sessions.get(activeSessionId);
-      if (session?.ws && session.ws.readyState === WebSocket.OPEN) {
+      if (session?.status === 'connected' && session?.ws && session.ws.readyState === WebSocket.OPEN) {
         session.ws.send(JSON.stringify({
           type: 'input',
           data: { input: cmd + '\r' }
