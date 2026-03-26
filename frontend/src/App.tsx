@@ -13,7 +13,9 @@ import './App.css';
 function App() {
   const [showForm, setShowForm] = useState(false);
   const [formConfig, setFormConfig] = useState<SSHConfig | null>(null);
-  const { theme } = usePreferencesStore();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileQuickCommandsOpen, setMobileQuickCommandsOpen] = useState(false);
+  const { theme, language } = usePreferencesStore();
   const {
     loadConfigs,
     createSession,
@@ -31,6 +33,12 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     document.body.style.backgroundColor = theme === 'dark' ? '#282a36' : '#ffffff';
   }, [theme]);
+
+  // Close mobile sidebars when clicking overlay
+  const handleOverlayClick = useCallback(() => {
+    setMobileSidebarOpen(false);
+    setMobileQuickCommandsOpen(false);
+  }, []);
 
   // Connect to SSH server
   const connectToServer = useCallback((config: SSHConfig) => {
@@ -112,18 +120,58 @@ function App() {
 
   return (
     <div className="app" data-theme={theme}>
-      <Header onNewConnection={handleCreateNewConnection} />
+      <Header
+        onNewConnection={handleCreateNewConnection}
+        onToggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+        onToggleQuickCommands={() => setMobileQuickCommandsOpen(!mobileQuickCommandsOpen)}
+      />
+
+      {/* Mobile overlay */}
+      {(mobileSidebarOpen || mobileQuickCommandsOpen) && (
+        <div className="mobile-overlay" onClick={handleOverlayClick} />
+      )}
 
       <main className="main">
-        <ConnectionSidebar onConnect={handleReconnect} />
+        <ConnectionSidebar
+          onConnect={handleReconnect}
+          className={mobileSidebarOpen ? 'mobile-open' : ''}
+        />
 
         <div className="main-content">
           <TerminalContainer onNewConnection={handleCreateNewConnection} />
           <VirtualKeyboard />
         </div>
 
-        <QuickCommandsPanel />
+        <QuickCommandsPanel className={mobileQuickCommandsOpen ? 'mobile-open' : ''} />
       </main>
+
+      {/* Mobile bottom navigation */}
+      <nav className="mobile-nav">
+        <button
+          className={`mobile-nav-btn ${mobileSidebarOpen ? 'active' : ''}`}
+          onClick={() => {
+            setMobileSidebarOpen(!mobileSidebarOpen);
+            setMobileQuickCommandsOpen(false);
+          }}
+        >
+          <span className="mobile-nav-btn-icon">📋</span>
+          <span>{language === 'zh' ? '连接' : 'Connections'}</span>
+        </button>
+        <button className="mobile-nav-btn active">
+          <span className="mobile-nav-btn-icon">💻</span>
+          <span>{language === 'zh' ? '终端' : 'Terminal'}</span>
+        </button>
+        <button
+          className={`mobile-nav-btn ${mobileQuickCommandsOpen ? 'active' : ''}`}
+          onClick={() => {
+            setMobileQuickCommandsOpen(!mobileQuickCommandsOpen);
+            setMobileSidebarOpen(false);
+          }}
+        >
+          <span className="mobile-nav-btn-icon">⚡</span>
+          <span>{language === 'zh' ? '命令' : 'Commands'}</span>
+        </button>
+      </nav>
 
       {showForm && (
         <ConnectionForm

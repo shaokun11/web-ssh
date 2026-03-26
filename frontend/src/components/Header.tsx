@@ -6,9 +6,11 @@ import './Header.css';
 
 interface Props {
   onNewConnection: () => void;
+  onToggleSidebar?: () => void;
+  onToggleQuickCommands?: () => void;
 }
 
-export function Header({ onNewConnection }: Props) {
+export function Header({ onNewConnection, onToggleSidebar, onToggleQuickCommands }: Props) {
   const { t, i18n } = useTranslation();
   const { theme, toggleTheme, language, setLanguage } = usePreferencesStore();
   const { getAllSessions, disconnectAllSessions, getConfig, exportConfigs, importConfigs, loadConfigs } = useConnectionStore();
@@ -81,6 +83,15 @@ export function Header({ onNewConnection }: Props) {
     <>
       <header className="header">
         <div className="header-left">
+          {/* Mobile menu buttons */}
+          <button
+            className="btn btn-ghost btn-icon mobile-menu-btn"
+            onClick={onToggleSidebar}
+            title={language === 'zh' ? '连接列表' : 'Connections'}
+          >
+            📋
+          </button>
+
           {hasActiveSessions && activeConfig && (
             <div className="connection-status">
               <span className="status-dot connected"></span>
@@ -97,6 +108,15 @@ export function Header({ onNewConnection }: Props) {
         </div>
 
         <div className="header-right">
+          {/* Mobile quick commands button */}
+          <button
+            className="btn btn-ghost btn-icon mobile-menu-btn"
+            onClick={onToggleQuickCommands}
+            title={language === 'zh' ? '快捷命令' : 'Quick Commands'}
+          >
+            ⚡
+          </button>
+
           {/* Language Switch */}
           <button
             className="btn btn-ghost btn-icon language-switch"

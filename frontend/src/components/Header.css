@@ -265,3 +265,48 @@
   color: var(--color-red);
   border: 1px solid rgba(255, 85, 85, 0.3);
 }
+
+/* Mobile menu buttons - hidden on desktop */
+.mobile-menu-btn {
+  display: none;
+}
+
+/* Mobile styles */
+@media (max-width: 767px) {
+  .header {
+    padding: 0 12px;
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .connection-status {
+    padding: 4px 8px;
+    max-width: 150px;
+  }
+
+  .connection-info {
+    font-size: 12px;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .connection-detail {
+    display: none;
+  }
+
+  .header-right .btn:not(.mobile-menu-btn):not(:last-child) {
+    padding: 6px;
+    min-width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .header-right .btn:last-child {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}

@@ -85,7 +85,11 @@ const commandCategories = [
   },
 ];
 
-export function QuickCommandsPanel() {
+interface QuickCommandsPanelProps {
+  className?: string;
+}
+
+export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
@@ -125,7 +129,7 @@ export function QuickCommandsPanel() {
   };
 
   return (
-    <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''}`}>
+        <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
       <div className="quick-commands-header">
         {!isCollapsed && <span className="quick-commands-title">{t('terminal.quickCommands')}</span>}
         <button

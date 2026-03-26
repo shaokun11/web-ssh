@@ -1,0 +1,261 @@
+/* Responsive Breakpoints
+   - Desktop: > 1024px
+   - Tablet: 768px - 1024px
+   - Mobile: < 768px
+*/
+
+/* ====== MOBILE STYLES (< 768px) ====== */
+@media (max-width: 767px) {
+  /* Hide sidebars by default on mobile */
+  .sidebar {
+    position: fixed;
+    left: -100%;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+    width: 280px !important;
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.mobile-open {
+    left: 0;
+  }
+
+  .sidebar.collapsed {
+    width: 280px !important;
+  }
+
+  /* Hide quick commands panel on mobile */
+  .quick-commands-panel {
+    position: fixed;
+    right: -260px;
+    top: 0;
+    height: 100vh;
+    z-index: 100;
+    width: 260px !important;
+    transition: right 0.3s ease;
+  }
+
+  .quick-commands-panel.mobile-open {
+    right: 0;
+  }
+
+  .quick-commands-panel.collapsed {
+    width: 260px !important;
+  }
+
+  /* Main content takes full width */
+  .main-content {
+    width: 100% !important;
+  }
+
+  /* Header adjustments */
+  .header {
+    padding: 0 12px;
+  }
+
+  .header-left .connection-status {
+    font-size: 11px;
+  }
+
+  .connection-detail {
+    display: none;
+  }
+
+  /* Tab bar adjustments */
+  .tab {
+    min-width: 80px;
+    max-width: 120px;
+    padding: 6px 8px;
+  }
+
+  .tab-title {
+    font-size: 11px;
+  }
+
+  /* Modal adjustments */
+  .modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 10px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* Welcome screen */
+  .welcome-screen {
+    padding: 20px !important;
+    padding-top: 40px !important;
+  }
+
+  .welcome-icon {
+    font-size: 48px !important;
+  }
+
+  .welcome-title {
+    font-size: 20px !important;
+  }
+
+  .quick-commands-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Virtual keyboard visible on mobile */
+  .keyboard {
+    display: flex !important;
+  }
+
+  /* Mobile navigation bar */
+  .mobile-nav {
+    display: flex !important;
+  }
+
+  /* Overlay for mobile sidebars */
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 99;
+  }
+}
+
+/* ====== TABLET STYLES (768px - 1024px) ====== */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Narrower sidebars */
+  .sidebar {
+    width: 200px !important;
+  }
+
+  .sidebar.collapsed {
+    width: 40px !important;
+  }
+
+  .quick-commands-panel {
+    width: 200px !important;
+  }
+
+  .quick-commands-panel.collapsed {
+    width: 40px !important;
+  }
+
+  /* Smaller connection items */
+  .connection-item {
+    padding: 10px;
+  }
+
+  .connection-item-name {
+    font-size: 12px;
+  }
+
+  .connection-item-detail {
+    font-size: 10px;
+  }
+
+  /* Tab adjustments */
+  .tab {
+    min-width: 90px;
+    max-width: 140px;
+  }
+
+  /* Modal adjustments */
+  .modal {
+    width: 80% !important;
+    max-width: 600px;
+  }
+
+  /* Quick commands grid */
+  .quick-commands-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Hide mobile nav on tablet */
+  .mobile-nav {
+    display: none !important;
+  }
+
+  /* Hide mobile overlay */
+  .mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* ====== DESKTOP STYLES (> 1024px) ====== */
+@media (min-width: 1025px) {
+  /* Full sidebars */
+  .sidebar {
+    width: 260px;
+  }
+
+  .sidebar.collapsed {
+    width: 40px;
+  }
+
+  .quick-commands-panel {
+    width: 240px;
+  }
+
+  .quick-commands-panel.collapsed {
+    width: 40px;
+  }
+
+  /* Hide mobile nav on desktop */
+  .mobile-nav {
+    display: none !important;
+  }
+
+  /* Hide mobile overlay */
+  .mobile-overlay {
+    display: none !important;
+  }
+}
+
+/* ====== MOBILE NAVIGATION BAR ====== */
+.mobile-nav {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 0 16px;
+  z-index: 50;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.mobile-nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.mobile-nav-btn:hover,
+.mobile-nav-btn.active {
+  color: var(--color-purple);
+  background: rgba(189, 147, 249, 0.1);
+}
+
+.mobile-nav-btn-icon {
+  font-size: 20px;
+}
+
+/* ====== MOBILE OVERLAY ====== */
+.mobile-overlay {
+  display: none;
+}

@@ -7,9 +7,10 @@ import './ConnectionSidebar.css';
 
 interface Props {
   onConnect: (config: SSHConfig) => void;
+  className?: string;
 }
 
-export function ConnectionSidebar({ onConnect }: Props) {
+export function ConnectionSidebar({ onConnect, className }: Props) {
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const {
@@ -68,7 +69,7 @@ export function ConnectionSidebar({ onConnect }: Props) {
 
   return (
     <>
-      <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
         <button className="sidebar-toggle" onClick={toggleSidebar} title={isCollapsed ? 'Expand' : 'Collapse'}>
           {isCollapsed ? '▶' : '◀'}
         </button>
