@@ -130,3 +130,41 @@
   background: var(--color-red);
   color: white;
 }
+
+/* Connected Info */
+.connected-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(80, 250, 123, 0.1);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.connected-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.connected-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-green);
+  margin-left: 8px;
+}
+
+.btn-disconnect {
+  padding: 6px 12px;
+  font-size: 11px;
+  background: var(--color-red);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-disconnect:hover {
+  background: #ff3333;
+  transform: scale(1.02);
+}

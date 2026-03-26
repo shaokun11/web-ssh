@@ -63,7 +63,7 @@ export function Terminal() {
   const xtermRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
 
-  const { ws, isConnected, currentConfig } = useConnectionStore();
+  const { ws, isConnected, currentConfig, disconnect } = useConnectionStore();
   const { theme, fontSize } = usePreferencesStore();
 
   // Initialize terminal once
@@ -191,6 +191,13 @@ export function Terminal() {
     }
   }, [isConnected]);
 
+  const handleDisconnect = () => {
+    if (ws) {
+      ws.close();
+    }
+    disconnect();
+  };
+
   return (
     <div className="terminal-wrapper">
       <div className="terminal-tabs">
@@ -198,9 +205,12 @@ export function Terminal() {
           <span className="terminal-tab-title">
             {currentConfig?.name || 'Terminal'}
           </span>
-          <button className="terminal-tab-close" title="关闭">×</button>
+          {isConnected && (
+            <button className="terminal-tab-close" onClick={handleDisconnect} title="断开连接">
+              ×
+            </button>
+          )}
         </div>
-        <button className="terminal-tab-add" title="新建标签页">+</button>
       </div>
       <div className="terminal-container" ref={containerRef}></div>
     </div>

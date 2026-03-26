@@ -59,8 +59,6 @@ func (c *Client) NewSession() (*Session, error) {
 		ssh.ECHO:          1,     // Enable echo
 		ssh.TTY_OP_ISPEED: 14400, // Input speed = 14.4kbaud
 		ssh.TTY_OP_OSPEED: 14400, // Output speed = 14.4kbaud
-		ssh.ICANON:        1,     // Canonical mode
-		ssh.ISIG:          1,     // Signal characters enabled
 	}
 
 	// Request PTY with default size (will be resized later via WindowChange)

@@ -8,7 +8,7 @@ interface Props {
 }
 
 export function ConnectionSidebar({ onConnect }: Props) {
-  const { currentConfig, isConnected, configs, setConfigs } = useConnectionStore();
+  const { currentConfig, isConnected, configs, setConfigs, disconnect } = useConnectionStore();
 
   useEffect(() => {
     const loadConfigs = async () => {
@@ -31,6 +31,11 @@ export function ConnectionSidebar({ onConnect }: Props) {
     onConnect(config);
   };
 
+  const handleDisconnect = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    disconnect();
+  };
+
   const handleDeleteConfig = async (e: React.MouseEvent, configId: string) => {
     e.stopPropagation();
     await db.configs.delete(configId);
@@ -42,6 +47,19 @@ export function ConnectionSidebar({ onConnect }: Props) {
       <div className="sidebar-header">
         <span className="sidebar-title">SSH 连接</span>
       </div>
+
+      {/* Disconnect button when connected */}
+      {isConnected && currentConfig && (
+        <div className="connected-info">
+          <div className="connected-status">
+            <span className="status-dot connected"></span>
+            <span>已连接: {currentConfig.name}</span>
+          </div>
+          <button className="btn-disconnect" onClick={handleDisconnect}>
+            断开连接
+          </button>
+        </div>
+      )}
 
       <div className="sidebar-content">
         {configs.length === 0 ? (
