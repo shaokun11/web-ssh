@@ -47,15 +47,18 @@ docker-compose up -d
 # Access at http://localhost:8080
 ```
 
-#### Pull from Docker Hub
+#### Pull from GitHub Container Registry
 
 ```bash
 # Pull the latest image
-docker pull your username/webssh:latest
+docker pull ghcr.io/your-username/remote-ssh:latest
 
 # Run container
-docker run -d -p 8080:8080 yourusername/webssh:latest
+docker run -d -p 8080:8080 ghcr.io/your-username/remote-ssh:latest
+
 ```
+
+**注意:** 将 `your-username` 替换为您的 GitHub 用户名。镜像地址格式为 `ghcr.io/用户名/仓库名:标签名`
 
 #### Manual Setup
 
