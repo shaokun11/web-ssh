@@ -3,10 +3,11 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useConnectionStore } from '../store/connectionStore';
+import { usePreferencesStore } from '../store/preferencesStore';
 import './Terminal.css';
 
-// Dracula terminal theme
-const draculaTheme = {
+// Dark theme (Dracula)
+const darkTheme = {
   background: '#282a36',
   foreground: '#f8f8f2',
   cursor: '#f8f8f2',
@@ -31,12 +32,39 @@ const draculaTheme = {
   brightWhite: '#ffffff',
 };
 
+// Light theme (GitHub-style)
+const lightTheme = {
+  background: '#ffffff',
+  foreground: '#24292e',
+  cursor: '#24292e',
+  cursorAccent: '#ffffff',
+  selectionBackground: '#c8e1ff',
+  selectionForeground: '#24292e',
+  black: '#24292e',
+  red: '#d73a49',
+  green: '#28a745',
+  yellow: '#ffd33d',
+  blue: '#0366d6',
+  magenta: '#6f42c1',
+  cyan: '#005cc5',
+  white: '#586069',
+  brightBlack: '#444d56',
+  brightRed: '#cb2431',
+  brightGreen: '#22863a',
+  brightYellow: '#b08800',
+  brightBlue: '#005cc5',
+  brightMagenta: '#6f42c1',
+  brightCyan: '#005cc5',
+  brightWhite: '#fafbfc',
+};
+
 export function Terminal() {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
 
   const { ws, isConnected, currentConfig } = useConnectionStore();
+  const { theme, fontSize } = usePreferencesStore();
 
   // Initialize terminal once
   useEffect(() => {
@@ -44,10 +72,10 @@ export function Terminal() {
 
     if (!xtermRef.current) {
       const xterm = new XTerminal({
-        fontSize: 13,
+        fontSize: fontSize,
         fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-        lineHeight: 1.5,
-        theme: draculaTheme,
+        lineHeight: 1.4,
+        theme: theme === 'dark' ? darkTheme : lightTheme,
         cursorBlink: true,
         cursorStyle: 'block',
         allowTransparency: true,
@@ -55,7 +83,6 @@ export function Terminal() {
 
       const fitAddon = new FitAddon();
       xterm.loadAddon(fitAddon);
-
       xterm.open(containerRef.current);
       fitAddon.fit();
 
@@ -77,6 +104,28 @@ export function Terminal() {
     };
   }, []);
 
+  // Update terminal theme when app theme changes
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = theme === 'dark' ? darkTheme : lightTheme;
+    }
+  }, [theme]);
+
+  // Update font size when it changes
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.fontSize = fontSize;
+      setTimeout(() => fitAddonRef.current?.fit(), 50);
+    }
+  }, [fontSize]);
+
+  // Clear terminal when starting new connection
+  useEffect(() => {
+    if (ws && xtermRef.current) {
+      xtermRef.current.clear();
+    }
+  }, [ws, currentConfig?.id]);
+
   // Handle WebSocket messages and input
   useEffect(() => {
     if (!ws || !xtermRef.current) return;
@@ -84,17 +133,18 @@ export function Terminal() {
     const xterm = xtermRef.current;
     const fitAddon = fitAddonRef.current;
 
-    // Clear terminal and show welcome
-    xterm.clear();
-    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
-    xterm.writeln('\x1b[1;35m  WebSSH Terminal - Dracula Theme\x1b[0m');
-    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
-    xterm.writeln('');
-    xterm.writeln('\x1b[90mConnecting to server...\x1b[0m');
-
     // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
       try {
+        // Check if it's binary data (raw SSH output)
+        if (event.data instanceof ArrayBuffer) {
+          const decoder = new TextDecoder();
+          const output = decoder.decode(event.data);
+          xterm.write(output);
+          return;
+        }
+
+        // Try to parse as JSON for control messages
         const msg = JSON.parse(event.data);
 
         if (msg.type === 'output') {
@@ -106,12 +156,7 @@ export function Terminal() {
           xterm.writeln('');
           xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
         } else if (msg.type === 'connected') {
-          // Connected successfully
-          xterm.writeln('');
-          xterm.writeln(`\x1b[1;32m✓ Connected to ${currentConfig?.host}\x1b[0m`);
-          xterm.writeln('');
-
-          // Send initial resize
+          // Connected successfully - send terminal size
           if (fitAddon) {
             const dims = fitAddon.proposeDimensions();
             if (dims) {
@@ -123,7 +168,10 @@ export function Terminal() {
           }
         }
       } catch {
-        // Ignore parse errors
+        // If not JSON, treat as raw output
+        if (typeof event.data === 'string') {
+          xterm.write(event.data);
+        }
       }
     };
 
@@ -140,9 +188,7 @@ export function Terminal() {
     ws.addEventListener('message', handleMessage);
 
     // Fit terminal
-    setTimeout(() => {
-      fitAddon?.fit();
-    }, 100);
+    setTimeout(() => fitAddon?.fit(), 100);
 
     return () => {
       ws.removeEventListener('message', handleMessage);
@@ -153,9 +199,7 @@ export function Terminal() {
   // Fit terminal when connected
   useEffect(() => {
     if (isConnected && fitAddonRef.current) {
-      setTimeout(() => {
-        fitAddonRef.current?.fit();
-      }, 100);
+      setTimeout(() => fitAddonRef.current?.fit(), 100);
     }
   }, [isConnected]);
 
