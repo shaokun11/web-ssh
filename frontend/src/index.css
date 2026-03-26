@@ -48,31 +48,31 @@
   --transition-normal: 200ms ease;
 }
 
-/* Light Theme */
+/* Light Theme - Comfortable warm tones */
 [data-theme="light"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f8fa;
-  --bg-tertiary: #e1e4e8;
-  --bg-hover: #f3f4f6;
+  --bg-primary: #faf9f7;
+  --bg-secondary: #f5f3f0;
+  --bg-tertiary: #ebe8e4;
+  --bg-hover: #eeebe7;
 
-  --text-primary: #24292e;
-  --text-secondary: #586069;
-  --text-muted: #959da5;
+  --text-primary: #2d2a26;
+  --text-secondary: #5c5852;
+  --text-muted: #8a857d;
 
-  --border-color: #e1e4e8;
-  --border-active: #6f42c1;
+  --border-color: #e5e2dc;
+  --border-active: #7c6aa0;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.15);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
 
-  --color-purple: #6f42c1;
-  --color-green: #28a745;
-  --color-cyan: #0366d6;
-  --color-orange: #f66a0a;
-  --color-red: #d73a49;
-  --color-yellow: #ffd33d;
-  --color-pink: #db61a2;
+  --color-purple: #7c6aa0;
+  --color-green: #3d8c6e;
+  --color-cyan: #3a7cbd;
+  --color-orange: #c97a3a;
+  --color-red: #c45c5c;
+  --color-yellow: #c9a835;
+  --color-pink: #b86b8a;
 }
 
 /* Reset & Base Styles */
