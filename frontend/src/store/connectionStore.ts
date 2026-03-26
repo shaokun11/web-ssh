@@ -51,6 +51,10 @@ interface ConnectionState {
 
   // Get config by ID
   getConfig: (configId: string) => SSHConfig | undefined;
+
+  // Export/Import
+  exportConfigs: () => Promise<string>;
+  importConfigs: (jsonData: string) => Promise<{ added: number; skipped: number }>;
 }
 
 export const useConnectionStore = create<ConnectionState>((set, get) => ({
@@ -245,5 +249,74 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
   // Get config by ID
   getConfig: (configId: string) => {
     return get().configs.find(c => c.id === configId);
+  },
+
+  // Export all configs to JSON
+  exportConfigs: async () => {
+    const allConfigs = await db.configs.toArray();
+    // Remove sensitive data for export (optional - can keep if user wants)
+    const exportData = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      configs: allConfigs.map(c => ({
+        id: c.id,
+        name: c.name,
+        host: c.host,
+        port: c.port,
+        username: c.username,
+        privateKey: c.privateKey,
+        // Don't export password by default for security
+        createdAt: c.createdAt,
+        lastUsedAt: c.lastUsedAt,
+      }))
+    };
+    return JSON.stringify(exportData, null, 2);
+  },
+
+  // Import configs from JSON
+  importConfigs: async (jsonData: string) => {
+    try {
+      const data = JSON.parse(jsonData);
+
+      // Validate format
+      if (!data.configs || !Array.isArray(data.configs)) {
+        throw new Error('Invalid format: missing configs array');
+      }
+
+      let added = 0;
+      let skipped = 0;
+
+      for (const config of data.configs) {
+        // Check if config already exists (by host+username)
+        const exists = await db.configs
+          .where('host')
+          .equals(config.host)
+          .filter(c => c.username === config.username)
+          .first();
+
+        if (exists) {
+          skipped++;
+          continue;
+        }
+
+        // Generate new ID to avoid conflicts
+        const newConfig = {
+          ...config,
+          id: crypto.randomUUID ? crypto.randomUUID() : `imported-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: new Date(),
+          lastUsedAt: undefined,
+        };
+
+        await db.configs.add(newConfig);
+        added++;
+      }
+
+      // Reload configs
+      await get().loadConfigs();
+
+      return { added, skipped };
+    } catch (error) {
+      throw new Error(`导入失败: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   },
 }));

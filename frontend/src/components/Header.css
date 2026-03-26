@@ -197,3 +197,71 @@
   color: var(--text-muted) !important;
   font-size: 12px !important;
 }
+
+/* Privacy Notice */
+.privacy-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: rgba(80, 250, 123, 0.1);
+  border: 1px solid rgba(80, 250, 123, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.privacy-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.privacy-content h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-green);
+}
+
+.privacy-content p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* Settings Actions */
+.settings-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.settings-actions .btn {
+  flex: 1;
+}
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+}
+
+/* Import Status */
+.import-status {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+.import-status.success {
+  background: rgba(80, 250, 123, 0.15);
+  color: var(--color-green);
+  border: 1px solid rgba(80, 250, 123, 0.3);
+}
+
+.import-status.error {
+  background: rgba(255, 85, 85, 0.15);
+  color: var(--color-red);
+  border: 1px solid rgba(255, 85, 85, 0.3);
+}

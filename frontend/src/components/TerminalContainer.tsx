@@ -328,6 +328,10 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
             <div className="welcome-icon">🖥️</div>
             <h2 className="welcome-title">欢迎使用 Web SSH</h2>
             <p className="welcome-subtitle">点击"新建连接"开始您的 SSH 会话</p>
+            <div className="welcome-privacy-notice">
+              <span className="privacy-icon">🔒</span>
+              <span className="privacy-text">所有数据均保存在本地浏览器，不会上传到任何服务器</span>
+            </div>
             <p className="welcome-hint">提示: 同一服务器可以创建多个连接</p>
             <button className="btn btn-primary btn-lg" onClick={onNewConnection}>
               + 新建连接

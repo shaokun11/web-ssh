@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { useConnectionStore } from '../store/connectionStore';
 import './Header.css';
@@ -9,16 +9,65 @@ interface Props {
 
 export function Header({ onNewConnection }: Props) {
   const { theme, toggleTheme } = usePreferencesStore();
-  const { getAllSessions, disconnectAllSessions, getConfig } = useConnectionStore();
+  const { getAllSessions, disconnectAllSessions, getConfig, exportConfigs, importConfigs, loadConfigs } = useConnectionStore();
   const [showSettings, setShowSettings] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sessions = getAllSessions();
   const hasActiveSessions = sessions.length > 0;
-  const activeSession = sessions[0]; // Show first session info in header
+  const activeSession = sessions[0];
   const activeConfig = activeSession ? getConfig(activeSession.configId) : null;
 
   const handleDisconnect = () => {
     disconnectAllSessions();
+  };
+
+  const handleExport = async () => {
+    try {
+      const jsonData = await exportConfigs();
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `webssh-configs-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setImportStatus({ type: 'success', message: '导出成功！' });
+      setTimeout(() => setImportStatus(null), 3000);
+    } catch (error) {
+      setImportStatus({ type: 'error', message: `导出失败: ${error}` });
+    }
+  };
+
+  const handleImport = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const result = await importConfigs(text);
+      setImportStatus({
+        type: 'success',
+        message: `导入完成！新增 ${result.added} 个配置${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复配置` : ''}`
+      });
+      await loadConfigs();
+    } catch (error) {
+      setImportStatus({
+        type: 'error',
+        message: error instanceof Error ? error.message : '导入失败'
+      });
+    }
+
+    // Reset file input
+    e.target.value = '';
+    setTimeout(() => setImportStatus(null), 5000);
   };
 
   return (
@@ -74,6 +123,15 @@ export function Header({ onNewConnection }: Props) {
         </div>
       </header>
 
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
       {/* Settings Modal */}
       {showSettings && (
         <div className="modal-overlay" onClick={() => setShowSettings(false)}>
@@ -83,6 +141,22 @@ export function Header({ onNewConnection }: Props) {
               <button className="modal-close" onClick={() => setShowSettings(false)}>✕</button>
             </div>
             <div className="modal-body">
+              {/* Status message */}
+              {importStatus && (
+                <div className={`import-status ${importStatus.type}`}>
+                  {importStatus.message}
+                </div>
+              )}
+
+              {/* Privacy notice */}
+              <div className="settings-section privacy-notice">
+                <div className="privacy-icon">🔒</div>
+                <div className="privacy-content">
+                  <h4>数据本地存储</h4>
+                  <p>所有连接配置和命令历史均保存在您的浏览器本地（IndexedDB），不会上传到任何服务器。</p>
+                </div>
+              </div>
+
               <div className="settings-group">
                 <div className="settings-item">
                   <div className="settings-item-info">
@@ -95,6 +169,21 @@ export function Header({ onNewConnection }: Props) {
                     {theme === 'dark' ? '☀️ 切换' : '🌙 切换'}
                   </button>
                 </div>
+              </div>
+
+              <div className="settings-section">
+                <h4 className="settings-section-title">配置管理</h4>
+                <div className="settings-actions">
+                  <button className="btn btn-secondary" onClick={handleExport}>
+                    📤 导出配置
+                  </button>
+                  <button className="btn btn-secondary" onClick={handleImport}>
+                    📥 导入配置
+                  </button>
+                </div>
+                <p className="settings-hint">
+                  导出的配置文件为 JSON 格式，可在其他浏览器或设备导入
+                </p>
               </div>
 
               <div className="settings-section">

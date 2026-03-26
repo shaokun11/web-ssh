@@ -77,5 +77,26 @@
 .welcome-subtitle {
   font-size: 14px;
   color: var(--text-muted);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
+}
+
+.welcome-privacy-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(80, 250, 123, 0.1);
+  border: 1px solid rgba(80, 250, 123, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.privacy-icon {
+  font-size: 18px;
+}
+
+.privacy-text {
+  font-size: 12px;
+  color: var(--color-green);
+  font-weight: 500;
 }
