@@ -65,7 +65,7 @@ export function VirtualKeyboard() {
     ws.send(JSON.stringify({ type: 'input', data: { input: value } }));
   };
 
-  if (!isConnected) return null;
+  if (!isConnected) return <div className="keyboard keyboard-hidden" />;
 
   return (
     <div className="keyboard">

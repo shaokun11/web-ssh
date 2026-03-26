@@ -91,8 +91,8 @@ const commandCategories = [
 export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const { getAllSessions, sessions } = useConnectionStore();
-  const { globalHistory, loadAllHistory } = useHistoryStore();
+  const { getAllSessions, sessions, configs } = useConnectionStore();
+  const { globalHistory, loadAllHistory, filterConfigId, setFilter, histories } = useHistoryStore();
 
   const hasActiveSession = getAllSessions().length > 0;
 
@@ -101,8 +101,16 @@ export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps)
     loadAllHistory();
   }, [loadAllHistory]);
 
-  // Get recent 20 commands
-  const recentCommands = globalHistory.slice(0, 20);
+  // Get filtered commands based on filterConfigId
+  const getFilteredCommands = () => {
+    if (filterConfigId === 'all' || filterConfigId === null) {
+      return globalHistory.slice(0, 20);
+    }
+    const filtered = histories.get(filterConfigId) || [];
+    return filtered.slice(0, 20);
+  };
+
+  const recentCommands = getFilteredCommands();
 
   const handleCommandClick = (cmd: string) => {
     // Copy to clipboard
@@ -144,6 +152,20 @@ export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps)
             <div className="history-section-header">
               <span className="history-section-icon">📜</span>
               <span className="history-section-title">命令历史</span>
+              {/* Filter Dropdown */}
+              <select
+                className="history-filter-select"
+                value={filterConfigId || 'all'}
+                onChange={(e) => setFilter(e.target.value === 'all' ? null : e.target.value)}
+                title="筛选历史记录"
+              >
+                <option value="all">全部服务器</option>
+                {configs.map((config) => (
+                  <option key={config.id} value={config.id}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
             </div>
             {recentCommands.length === 0 ? (
               <div className="history-empty">暂无历史记录</div>

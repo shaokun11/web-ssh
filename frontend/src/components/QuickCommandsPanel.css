@@ -216,9 +216,41 @@
 }
 
 .history-section-title {
+  flex: 1;
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
+}
+
+/* History Filter Select */
+.history-filter-select {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 10px;
+  padding: 3px 6px;
+  cursor: pointer;
+  outline: none;
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-filter-select:hover {
+  border-color: var(--color-purple);
+}
+
+.history-filter-select:focus {
+  border-color: var(--color-purple);
+  box-shadow: 0 0 0 2px rgba(189, 147, 249, 0.2);
+}
+
+.history-filter-select option {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 11px;
 }
 
 .history-empty {
