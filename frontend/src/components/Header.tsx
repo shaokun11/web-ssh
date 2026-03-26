@@ -74,11 +74,6 @@ export function Header({ onNewConnection }: Props) {
     <>
       <header className="header">
         <div className="header-left">
-          <div className="logo">
-            <span className="logo-icon">🖥️</span>
-            <span className="logo-text">WebSSH</span>
-          </div>
-
           {hasActiveSessions && activeConfig && (
             <div className="connection-status">
               <span className="status-dot connected"></span>

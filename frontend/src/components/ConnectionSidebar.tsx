@@ -15,8 +15,7 @@ export function ConnectionSidebar({ onConnect }: Props) {
     activeSessionId,
     loadConfigs,
     focusSession,
-    disconnectSession,
-    createSession
+    disconnectSession
   } = useConnectionStore();
 
   const [editingConfig, setEditingConfig] = useState<SSHConfig | null>(null);
@@ -61,11 +60,6 @@ export function ConnectionSidebar({ onConnect }: Props) {
 
     // Trigger new connection
     onConnect(config);
-  };
-
-  // Handle creating a new session for a config that already has sessions
-  const handleNewSession = (config: SSHConfig) => {
-    createSession(config);
   };
 
   const handleDeleteConfig = async (e: React.MouseEvent, configId: string) => {
@@ -132,17 +126,6 @@ export function ConnectionSidebar({ onConnect }: Props) {
                 const sessions = sessionsByConfigId.get(config.id) || [];
                 return (
                   <div key={config.id} className="config-sessions-group">
-                    {/* Config header with "new session" button */}
-                    <div className="config-sessions-header">
-                      <span className="config-name">{config.name}</span>
-                      <button
-                        className="btn-new-session"
-                        onClick={() => handleNewSession(config)}
-                        title="新建会话"
-                      >
-                        +
-                      </button>
-                    </div>
                     {/* Sessions for this config */}
                     {sessions.map((session) => (
                       <div
