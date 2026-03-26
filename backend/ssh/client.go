@@ -15,20 +15,30 @@ type Config struct {
 	Port       int
 	Username   string
 	PrivateKey string
+	Password   string
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	config := &ssh.ClientConfig{
+		User:            cfg.Username,
+		Auth:            []ssh.AuthMethod{},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
 
-	config := &ssh.ClientConfig{
-		User: cfg.Username,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	// Add authentication methods
+	if cfg.Password != "" {
+		config.Auth = append(config.Auth, ssh.Password(cfg.Password))
+	}
+	if cfg.PrivateKey != "" {
+		signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
+		}
+		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
+	}
+
+	if len(config.Auth) == 0 {
+		return nil, fmt.Errorf("no authentication method provided")
 	}
 
 	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)

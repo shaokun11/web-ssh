@@ -66,6 +66,7 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 				Port:       data.Port,
 				Username:   data.Username,
 				PrivateKey: data.PrivateKey,
+				Password:   data.Password,
 			})
 
 			if err != nil {

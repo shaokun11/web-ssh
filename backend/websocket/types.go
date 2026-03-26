@@ -23,6 +23,7 @@ type ConnectData struct {
 	Port       int    `json:"port"`
 	Username   string `json:"username"`
 	PrivateKey string `json:"privateKey"`
+	Password   string `json:"password"`
 }
 
 type InputData struct {

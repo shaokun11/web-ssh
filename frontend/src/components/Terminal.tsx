@@ -135,16 +135,20 @@ export function Terminal() {
 
     // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
+      console.log('[Terminal] Received message, type:', typeof event.data, 'isArrayBuffer:', event.data instanceof ArrayBuffer);
+
       // Handle binary messages (terminal output)
       if (event.data instanceof ArrayBuffer) {
         const decoder = new TextDecoder('utf-8');
         const output = decoder.decode(event.data);
+        console.log('[Terminal] Binary output length:', output.length);
         xterm.write(output);
         return;
       }
 
       // Handle text messages (control messages)
       if (typeof event.data === 'string') {
+        console.log('[Terminal] Text message:', event.data.substring(0, 100));
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'error') {
@@ -152,6 +156,7 @@ export function Terminal() {
             xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
           } else if (msg.type === 'connected') {
             // Connected successfully - send terminal size
+            console.log('[Terminal] Connected, sending resize');
             if (fitAddon) {
               const dims = fitAddon.proposeDimensions();
               if (dims) {

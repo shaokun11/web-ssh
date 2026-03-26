@@ -122,7 +122,8 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
               host: config.host,
               port: config.port,
               username: config.username,
-              privateKey: config.privateKey,
+              privateKey: config.privateKey || '',
+              password: config.password || '',
             }
           }));
         };

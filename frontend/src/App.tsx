@@ -38,6 +38,7 @@ function App() {
     // Create new WebSocket connection
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer'; // Important: receive binary data as ArrayBuffer
 
     ws.onopen = () => {
       // Send connect message
@@ -91,12 +92,22 @@ function App() {
 
   // Handle reconnect from sidebar
   const handleReconnect = useCallback((config: SSHConfig) => {
-    if (!config.privateKey) {
-      // No private key saved, show form with config data
+    console.log('[App] handleReconnect called with config:', {
+      name: config.name,
+      hasPrivateKey: !!config.privateKey,
+      hasPassword: !!config.password,
+      passwordLength: config.password?.length || 0
+    });
+
+    // Check if we have credentials saved (either privateKey or password)
+    if (!config.privateKey && !config.password) {
+      console.log('[App] No credentials saved, showing form');
+      // No credentials saved, show form with config data
       setFormConfig(config);
       setShowForm(true);
     } else {
-      // Connect directly
+      console.log('[App] Connecting directly with saved credentials');
+      // Connect directly with saved credentials
       connectToServer(config);
     }
   }, [connectToServer]);
