@@ -51,14 +51,13 @@ docker-compose up -d
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/your-username/remote-ssh:latest
+docker pull ghcr.io/shaokun11/web-ssh:latest
 
 # Run container
-docker run -d -p 8080:8080 ghcr.io/your-username/remote-ssh:latest
-
+docker run -d -p 8080:8080 ghcr.io/shaokun11/web-ssh:latest
 ```
 
-**注意:** 将 `your-username` 替换为您的 GitHub 用户名。镜像地址格式为 `ghcr.io/用户名/仓库名:标签名`
+**Note:** Replace `shaokun11` with your GitHub username if The image URL format is `ghcr.io/username/repository:tag`
 
 #### Manual Setup
 
