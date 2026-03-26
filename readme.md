@@ -47,6 +47,16 @@ docker-compose up -d
 # Access at http://localhost:8080
 ```
 
+#### Pull from Docker Hub
+
+```bash
+# Pull the latest image
+docker pull your username/webssh:latest
+
+# Run container
+docker run -d -p 8080:8080 yourusername/webssh:latest
+```
+
 #### Manual Setup
 
 **Prerequisites:**
@@ -76,6 +86,9 @@ pnpm dev
 |----------|-------------|---------|
 | `PORT` | Server port | `8080` |
 | `ALLOWED_ORIGINS` | CORS allowed origins | `*` |
+| `MAX_CONNECTIONS` | Max concurrent SSH sessions | `100` |
+| `SSH_CONNECT_TIMEOUT` | SSH connection timeout (seconds) | `30` |
+| `MAX_INPUT_LENGTH` | Max input length (bytes) | `4096` |
 
 ### Security Considerations
 
