@@ -3,9 +3,16 @@ import type { CommandHistoryItem } from '../db';
 import { db } from '../db';
 
 interface HistoryState {
+  // Global history (all commands from all connections)
+  globalHistory: CommandHistoryItem[];
   // histories stored per config
   histories: Map<string, CommandHistoryItem[]>;
   loadedConfigs: Set<string>;
+  // Filter setting: 'all' = show all, or specific configId
+  filterConfigId: string | null;
+
+  // Load all history
+  loadAllHistory: () => Promise<void>;
 
   // Load history for a specific config
   loadHistory: (configId: string) => Promise<void>;
@@ -13,22 +20,40 @@ interface HistoryState {
   // Add a command to history
   addCommand: (configId: string, command: string) => Promise<void>;
 
-  // Search history for autocomplete
+  // Search history for autocomplete (searches all history)
   searchHistory: (configId: string, prefix: string) => string[];
 
-  // Get recent commands for a config
-  getRecentCommands: (configId: string, limit?: number) => CommandHistoryItem[];
+  // Get recent commands (filtered or all)
+  getRecentCommands: (configId: string | null, limit?: number) => CommandHistoryItem[];
 
   // Clear history for a config
   clearHistory: (configId: string) => Promise<void>;
 
-  // Get history for current config
-  getCurrentHistory: (configId: string) => CommandHistoryItem[];
+  // Get history for display (filtered by filterConfigId or all)
+  getDisplayHistory: (activeConfigId: string | null) => CommandHistoryItem[];
+
+  // Set filter
+  setFilter: (configId: string | null) => void;
 }
 
 export const useHistoryStore = create<HistoryState>((set, get) => ({
+  globalHistory: [],
   histories: new Map(),
   loadedConfigs: new Set(),
+  filterConfigId: null,
+
+  loadAllHistory: async () => {
+    const items = await db.history.orderBy('executedAt').reverse().toArray();
+    set({ globalHistory: items });
+
+    // Also populate per-config maps
+    const configMap = new Map<string, CommandHistoryItem[]>();
+    for (const item of items) {
+      const existing = configMap.get(item.configId) || [];
+      configMap.set(item.configId, [...existing, item]);
+    }
+    set({ histories: configMap, loadedConfigs: new Set(configMap.keys()) });
+  },
 
   loadHistory: async (configId: string) => {
     const { loadedConfigs } = get();
@@ -54,11 +79,10 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     const trimmed = command.trim();
     if (!trimmed) return;
 
-    // Check for duplicates within 60 seconds
-    const { histories } = get();
-    const history = histories.get(configId) || [];
+    // Check for duplicates within 60 seconds (in global history)
+    const { globalHistory } = get();
     const now = new Date();
-    const recentDuplicate = history.find(item => {
+    const recentDuplicate = globalHistory.find(item => {
       const age = now.getTime() - new Date(item.executedAt).getTime();
       return item.command === trimmed && age < 60000;
     });
@@ -75,23 +99,26 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     // Save to IndexedDB
     await db.history.add(newItem);
 
-    // Update local state
+    // Update both global and per-config state
     set((state) => {
       const newHistories = new Map(state.histories);
       const existingHistory = newHistories.get(configId) || [];
       newHistories.set(configId, [newItem, ...existingHistory]);
-      return { histories: newHistories };
+      return {
+        globalHistory: [newItem, ...state.globalHistory],
+        histories: newHistories
+      };
     });
   },
 
-  searchHistory: (configId: string, prefix: string) => {
-    const { histories } = get();
-    const history = histories.get(configId) || [];
+  searchHistory: (_configId: string, prefix: string) => {
+    // Search across ALL history for autocomplete
+    const { globalHistory } = get();
 
     if (!prefix.trim()) return [];
 
     const lowerPrefix = prefix.toLowerCase();
-    const matches = history
+    const matches = globalHistory
       .filter(item => item.command.toLowerCase().startsWith(lowerPrefix))
       .slice(0, 5)
       .map(item => item.command);
@@ -100,8 +127,11 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     return [...new Set(matches)];
   },
 
-  getRecentCommands: (configId: string, limit: number = 50) => {
-    const { histories } = get();
+  getRecentCommands: (configId: string | null, limit: number = 50) => {
+    const { histories, globalHistory } = get();
+    if (configId === null) {
+      return globalHistory.slice(0, limit);
+    }
     const history = histories.get(configId) || [];
     return history.slice(0, limit);
   },
@@ -112,12 +142,26 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     set((state) => {
       const newHistories = new Map(state.histories);
       newHistories.delete(configId);
-      return { histories: newHistories };
+      // Also remove from global history
+      const newGlobalHistory = state.globalHistory.filter(item => item.configId !== configId);
+      return { histories: newHistories, globalHistory: newGlobalHistory };
     });
   },
 
-  getCurrentHistory: (configId: string) => {
-    const { histories } = get();
-    return histories.get(configId) || [];
+  getDisplayHistory: (_activeConfigId: string | null) => {
+    const { filterConfigId, globalHistory, histories } = get();
+
+    // If filter is set to a specific config, show only that
+    if (filterConfigId) {
+      return histories.get(filterConfigId) || [];
+    }
+
+    // If filter is 'all' (null), show all history but highlight current session
+    // Sort by time, most recent first
+    return globalHistory.slice(0, 100);
+  },
+
+  setFilter: (configId: string | null) => {
+    set({ filterConfigId: configId });
   },
 }));

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -60,20 +60,17 @@ const lightTheme = {
   brightWhite: '#fafbfc',
 };
 
-interface TerminalInstance {
-  xterm: XTerminal;
-  fitAddon: FitAddon;
-  onDataDisposable?: { dispose: () => void };
-  currentInput: string;
-}
-
 interface TerminalContainerProps {
   onNewConnection: () => void;
 }
 
 export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
-  const containerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  const terminalInstances = useRef<Map<string, TerminalInstance>>(new Map());
+  const containerRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<XTerminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
+  const currentInputRef = useRef<string>('');
+  const cleanupRef = useRef<(() => void) | null>(null);
+
   const [autocompleteState, setAutocompleteState] = useState<{
     visible: boolean;
     suggestions: string[];
@@ -90,17 +87,22 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
     position: { x: 0, y: 0 },
   });
 
-  const { sessions, activeConfigId, updateSessionStatus, updateSessionWs } = useConnectionStore();
+  const { sessions, activeConfigId, updateSessionStatus } = useConnectionStore();
   const { theme, fontSize } = usePreferencesStore();
-  const { loadHistory, addCommand, searchHistory } = useHistoryStore();
+  const { addCommand, searchHistory } = useHistoryStore();
 
   // Get current theme
   const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
 
-  // Create terminal instance
-  const createTerminal = useCallback((configId: string) => {
-    const container = containerRefs.current.get(configId);
-    if (!container || terminalInstances.current.has(configId)) return null;
+  // Get active session
+  const activeSession = useMemo(() => {
+    if (!activeConfigId) return null;
+    return sessions.get(activeConfigId) || null;
+  }, [activeConfigId, sessions]);
+
+  // Initialize terminal once
+  useEffect(() => {
+    if (!containerRef.current) return;
 
     const xterm = new XTerminal({
       fontSize,
@@ -114,61 +116,64 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
-    xterm.open(container);
+    xterm.open(containerRef.current);
     fitAddon.fit();
 
-    const instance: TerminalInstance = {
-      xterm,
-      fitAddon,
-      currentInput: '',
+    xtermRef.current = xterm;
+    fitAddonRef.current = fitAddon;
+
+    return () => {
+      xterm.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
     };
-
-    terminalInstances.current.set(configId, instance);
-    return instance;
-  }, [fontSize, currentTheme]);
-
-  // Destroy terminal instance
-  const destroyTerminal = useCallback((configId: string) => {
-    const instance = terminalInstances.current.get(configId);
-    if (instance) {
-      instance.onDataDisposable?.dispose();
-      instance.xterm.dispose();
-      terminalInstances.current.delete(configId);
-    }
   }, []);
 
-  // Setup WebSocket handlers for a session
-  const setupWebSocket = useCallback((configId: string, ws: WebSocket, xterm: XTerminal, fitAddon: FitAddon) => {
-    // Load history for this config
-    loadHistory(configId);
+  // Handle WebSocket connection changes
+  useEffect(() => {
+    const xterm = xtermRef.current;
+    const fitAddon = fitAddonRef.current;
+    if (!xterm || !fitAddon) return;
 
-    // Track current input for autocomplete
-    let currentInput = '';
+    // Cleanup previous connection handlers
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+    }
+
+    // Clear terminal for new connection
+    xterm.clear();
+    currentInputRef.current = '';
+
+    if (!activeSession?.ws) {
+      xterm.writeln('欢迎使用 Web SSH');
+      xterm.writeln('点击"新建连接"开始您的 SSH 会话');
+      return;
+    }
+
+    const ws = activeSession.ws;
 
     // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
+      // Binary message (terminal output)
       if (event.data instanceof ArrayBuffer) {
         const decoder = new TextDecoder('utf-8');
         const output = decoder.decode(event.data);
         xterm.write(output);
-
-        // Buffer output for background tabs
-        const session = sessions.get(configId);
-        if (session && configId !== activeConfigId) {
-          updateSessionWs(configId, ws);
-        }
         return;
       }
 
+      // Text message (control messages)
       if (typeof event.data === 'string') {
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'error') {
             xterm.writeln('');
             xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
-            updateSessionStatus(configId, 'disconnected');
+            updateSessionStatus(activeConfigId!, 'disconnected');
           } else if (msg.type === 'connected') {
-            updateSessionStatus(configId, 'connected');
+            updateSessionStatus(activeConfigId!, 'connected');
+            // Send terminal size
             const dims = fitAddon.proposeDimensions();
             if (dims) {
               ws.send(JSON.stringify({
@@ -178,204 +183,187 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
             }
           }
         } catch {
+          // Raw text output
           xterm.write(event.data);
         }
       }
     };
 
-    // Handle terminal input with autocomplete support
+    // Handle terminal input
     const onDataDisposable = xterm.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        // Track input for autocomplete
-        if (data === '\t') {
-          // Tab pressed - trigger autocomplete
-          const suggestions = searchHistory(configId, currentInput);
-          if (suggestions.length > 0) {
-            setAutocompleteState({
-              visible: true,
-              suggestions,
-              selectedIndex: 0,
-              configId,
-              prefix: currentInput,
-              position: { x: 10, y: 50 }, // Simplified position
-            });
-            return; // Don't send Tab to server
-          }
-        } else if (data === '\r') {
-          // Enter pressed - save command to history
-          if (currentInput.trim()) {
-            addCommand(configId, currentInput.trim());
-          }
-          currentInput = '';
-          setAutocompleteState(prev => ({ ...prev, visible: false }));
-        } else if (data === '\x1b' || data.startsWith('\x1b[')) {
-          // Escape or arrow keys - close autocomplete
-          if (autocompleteState.visible) {
-            // Handle arrow navigation in autocomplete
-            if (data === '\x1b[A') { // Up arrow
-              setAutocompleteState(prev => ({
-                ...prev,
-                selectedIndex: Math.max(0, prev.selectedIndex - 1),
-              }));
-              return;
-            } else if (data === '\x1b[B') { // Down arrow
-              setAutocompleteState(prev => ({
-                ...prev,
-                selectedIndex: Math.min(prev.suggestions.length - 1, prev.selectedIndex + 1),
-              }));
-              return;
-            }
-          }
-          setAutocompleteState(prev => ({ ...prev, visible: false }));
-        } else if (data.charCodeAt(0) === 127 || data === '\b') {
-          // Backspace
-          currentInput = currentInput.slice(0, -1);
-          setAutocompleteState(prev => ({ ...prev, visible: false }));
-        } else if (data.charCodeAt(0) >= 32) {
-          // Regular character
-          currentInput += data;
-          setAutocompleteState(prev => ({ ...prev, visible: false }));
-        }
+      if (ws.readyState !== WebSocket.OPEN) return;
 
-        ws.send(JSON.stringify({
-          type: 'input',
-          data: { input: data }
-        }));
+      const configId = activeConfigId!;
+
+      // Tab - autocomplete
+      if (data === '\t') {
+        const suggestions = searchHistory(configId, currentInputRef.current);
+        if (suggestions.length > 0) {
+          // Get cursor position from xterm
+          const buffer = xterm.buffer.active;
+          const cursorX = buffer.cursorX * 9; // Approximate char width
+          const cursorY = buffer.cursorY * (fontSize * 1.4) + 80; // Add offset for tab bar
+
+          setAutocompleteState({
+            visible: true,
+            suggestions,
+            selectedIndex: 0,
+            configId,
+            prefix: currentInputRef.current,
+            position: { x: Math.min(cursorX, 300), y: cursorY },
+          });
+          return; // Don't send Tab to server
+        }
       }
+      // Enter - save command
+      else if (data === '\r') {
+        if (currentInputRef.current.trim()) {
+          addCommand(configId, currentInputRef.current.trim());
+        }
+        currentInputRef.current = '';
+        setAutocompleteState(prev => ({ ...prev, visible: false }));
+      }
+      // Arrow keys - navigate autocomplete
+      else if (data === '\x1b[A' && autocompleteState.visible) { // Up
+        setAutocompleteState(prev => ({
+          ...prev,
+          selectedIndex: Math.max(0, prev.selectedIndex - 1),
+        }));
+        return;
+      }
+      else if (data === '\x1b[B' && autocompleteState.visible) { // Down
+        setAutocompleteState(prev => ({
+          ...prev,
+          selectedIndex: Math.min(prev.suggestions.length - 1, prev.selectedIndex + 1),
+        }));
+        return;
+      }
+      // Escape - close autocomplete
+      else if (data === '\x1b') {
+        setAutocompleteState(prev => ({ ...prev, visible: false }));
+      }
+      // Backspace
+      else if (data.charCodeAt(0) === 127 || data === '\b') {
+        currentInputRef.current = currentInputRef.current.slice(0, -1);
+        setAutocompleteState(prev => ({ ...prev, visible: false }));
+      }
+      // Regular character
+      else if (data.charCodeAt(0) >= 32) {
+        currentInputRef.current += data;
+        setAutocompleteState(prev => ({ ...prev, visible: false }));
+      }
+
+      // Send to server
+      ws.send(JSON.stringify({
+        type: 'input',
+        data: { input: data }
+      }));
     });
 
-    ws.addEventListener('message', handleMessage);
-
-    ws.onclose = () => {
-      updateSessionStatus(configId, 'disconnected');
+    // Handle connection close
+    const handleClose = () => {
+      if (activeConfigId) {
+        updateSessionStatus(activeConfigId, 'disconnected');
+      }
       xterm.writeln('');
       xterm.writeln('\x1b[1;33mConnection closed\x1b[0m');
     };
 
-    ws.onerror = () => {
-      updateSessionStatus(configId, 'disconnected');
+    const handleError = () => {
+      if (activeConfigId) {
+        updateSessionStatus(activeConfigId, 'disconnected');
+      }
       xterm.writeln('');
       xterm.writeln('\x1b[1;31mConnection error\x1b[0m');
     };
 
-    // Store disposable for cleanup
-    const instance = terminalInstances.current.get(configId);
-    if (instance) {
-      instance.onDataDisposable = onDataDisposable;
-      instance.currentInput = '';
-    }
+    ws.addEventListener('message', handleMessage);
+    ws.addEventListener('close', handleClose);
+    ws.addEventListener('error', handleError);
 
-    return () => {
+    // Fit terminal
+    setTimeout(() => fitAddon.fit(), 100);
+
+    // Store cleanup function
+    cleanupRef.current = () => {
       ws.removeEventListener('message', handleMessage);
+      ws.removeEventListener('close', handleClose);
+      ws.removeEventListener('error', handleError);
       onDataDisposable.dispose();
     };
-  }, [sessions, activeConfigId, loadHistory, addCommand, searchHistory, updateSessionStatus, updateSessionWs, autocompleteState.visible]);
 
-  // Manage terminal lifecycle based on sessions
-  useEffect(() => {
-    sessions.forEach((session, configId) => {
-      // Create terminal if not exists
-      if (!terminalInstances.current.has(configId)) {
-        const instance = createTerminal(configId);
-        if (instance && session.ws) {
-          setupWebSocket(configId, session.ws, instance.xterm, instance.fitAddon);
-        }
-      }
-    });
-
-    // Destroy terminals for removed sessions
-    terminalInstances.current.forEach((_, configId) => {
-      if (!sessions.has(configId)) {
-        destroyTerminal(configId);
-      }
-    });
-  }, [sessions, createTerminal, destroyTerminal, setupWebSocket]);
-
-  // Update theme for all terminals
-  useEffect(() => {
-    terminalInstances.current.forEach((instance) => {
-      instance.xterm.options.theme = currentTheme;
-    });
-  }, [currentTheme]);
-
-  // Update font size for all terminals
-  useEffect(() => {
-    terminalInstances.current.forEach((instance) => {
-      instance.xterm.options.fontSize = fontSize;
-      setTimeout(() => instance.fitAddon.fit(), 50);
-    });
-  }, [fontSize]);
-
-  // Fit active terminal on resize
-  useEffect(() => {
-    const handleResize = () => {
-      if (activeConfigId) {
-        const instance = terminalInstances.current.get(activeConfigId);
-        if (instance) {
-          instance.fitAddon.fit();
-        }
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
       }
     };
+  }, [activeSession, activeConfigId, updateSessionStatus, addCommand, searchHistory, autocompleteState.visible, fontSize]);
 
+  // Update theme
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = currentTheme;
+    }
+  }, [currentTheme]);
+
+  // Update font size
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.fontSize = fontSize;
+      setTimeout(() => fitAddonRef.current?.fit(), 50);
+    }
+  }, [fontSize]);
+
+  // Fit on resize
+  useEffect(() => {
+    const handleResize = () => {
+      fitAddonRef.current?.fit();
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [activeConfigId]);
-
-  // Handle autocomplete selection
-  const handleAutocompleteSelect = useCallback((suggestion: string) => {
-    const instance = terminalInstances.current.get(autocompleteState.configId);
-    const session = sessions.get(autocompleteState.configId);
-
-    if (instance && session?.ws) {
-      // Clear current input and type the full suggestion
-      const clearChars = autocompleteState.prefix.length;
-      for (let i = 0; i < clearChars; i++) {
-        session.ws.send(JSON.stringify({
-          type: 'input',
-          data: { input: '\b' }
-        }));
-      }
-
-      // Send the full suggestion
-      session.ws.send(JSON.stringify({
-        type: 'input',
-        data: { input: suggestion }
-      }));
-
-      // Update terminal display (approximate - actual display comes from server)
-      instance.currentInput = suggestion;
-    }
-
-    setAutocompleteState(prev => ({ ...prev, visible: false }));
-  }, [autocompleteState, sessions]);
-
-  const handleAutocompleteClose = useCallback(() => {
-    setAutocompleteState(prev => ({ ...prev, visible: false }));
   }, []);
 
-  // Get sorted sessions for rendering
-  const sortedSessions = Array.from(sessions.entries())
-    .sort((a, b) => new Date(b[1].connectedAt).getTime() - new Date(a[1].connectedAt).getTime());
+  // Handle autocomplete selection
+  const handleAutocompleteSelect = (suggestion: string) => {
+    const ws = activeSession?.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+    // Clear current input
+    const clearChars = autocompleteState.prefix.length;
+    for (let i = 0; i < clearChars; i++) {
+      ws.send(JSON.stringify({
+        type: 'input',
+        data: { input: '\x7f' } // Backspace
+      }));
+    }
+
+    // Type suggestion
+    ws.send(JSON.stringify({
+      type: 'input',
+      data: { input: suggestion }
+    }));
+
+    currentInputRef.current = suggestion;
+    setAutocompleteState(prev => ({ ...prev, visible: false }));
+  };
+
+  const handleAutocompleteClose = () => {
+    setAutocompleteState(prev => ({ ...prev, visible: false }));
+  };
 
   return (
     <div className="terminal-wrapper">
       <TabBar onNewConnection={onNewConnection} />
 
       <div className="terminal-viewport">
-        {sortedSessions.map(([configId]) => (
-          <div
-            key={configId}
-            ref={(el) => {
-              if (el) containerRefs.current.set(configId, el);
-            }}
-            className={`terminal-instance ${configId === activeConfigId ? 'active' : ''}`}
-            style={{ display: configId === activeConfigId ? 'block' : 'none' }}
-          >
-            <div className="terminal-container"></div>
-          </div>
-        ))}
+        <div
+          ref={containerRef}
+          className="terminal-container"
+          style={{ paddingBottom: '80px' }}
+        />
 
-        {sessions.size === 0 && (
+        {!activeSession && (
           <div className="welcome-screen">
             <div className="welcome-icon">🖥️</div>
             <h2 className="welcome-title">欢迎使用 Web SSH</h2>

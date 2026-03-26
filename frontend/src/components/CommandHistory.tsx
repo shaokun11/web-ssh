@@ -6,18 +6,23 @@ import './CommandHistory.css';
 
 export function CommandHistory() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { activeConfigId, sessions } = useConnectionStore();
-  const { getCurrentHistory, loadHistory, clearHistory } = useHistoryStore();
+  const { activeConfigId, sessions, configs } = useConnectionStore();
+  const { getDisplayHistory, loadAllHistory, clearHistory, setFilter, filterConfigId, loadHistory } = useHistoryStore();
   const { sidebarVisible, toggleSidebar } = usePreferencesStore();
 
-  const history = getCurrentHistory(activeConfigId || '');
+  // Load all history on mount
+  useEffect(() => {
+    loadAllHistory();
+  }, [loadAllHistory]);
 
-  // Load history when active config changes
+  // Load history for active config
   useEffect(() => {
     if (activeConfigId) {
       loadHistory(activeConfigId);
     }
   }, [activeConfigId, loadHistory]);
+
+  const history = getDisplayHistory(activeConfigId);
 
   // Get current session's WebSocket
   const currentSession = activeConfigId ? sessions.get(activeConfigId) : null;
@@ -30,7 +35,9 @@ export function CommandHistory() {
   };
 
   const handleClear = async () => {
-    if (activeConfigId) {
+    if (filterConfigId) {
+      await clearHistory(filterConfigId);
+    } else if (activeConfigId) {
       await clearHistory(activeConfigId);
     }
   };
@@ -39,6 +46,24 @@ export function CommandHistory() {
   const filteredHistory = searchQuery
     ? history.filter(item => item.command.toLowerCase().includes(searchQuery.toLowerCase()))
     : history;
+
+  // Get config name by id
+  const getConfigName = (configId: string) => {
+    const config = configs.find(c => c.id === configId);
+    return config?.name || configId.slice(0, 8);
+  };
+
+  // Format time as subtle
+  const formatTime = (date: Date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+
+    if (isToday) {
+      return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+  };
 
   if (!sidebarVisible) {
     return (
@@ -64,6 +89,24 @@ export function CommandHistory() {
         </div>
       </div>
 
+      {/* Filter tabs */}
+      <div className="history-filters">
+        <button
+          className={`history-filter-btn ${!filterConfigId ? 'active' : ''}`}
+          onClick={() => setFilter(null)}
+        >
+          全部
+        </button>
+        {activeConfigId && (
+          <button
+            className={`history-filter-btn ${filterConfigId === activeConfigId ? 'active' : ''}`}
+            onClick={() => setFilter(activeConfigId)}
+          >
+            当前连接
+          </button>
+        )}
+      </div>
+
       {/* Search box */}
       <div className="history-search">
         <input
@@ -76,7 +119,7 @@ export function CommandHistory() {
       </div>
 
       <div className="history-content">
-        {!activeConfigId ? (
+        {!activeConfigId && history.length === 0 ? (
           <div className="history-empty">
             <span className="history-empty-icon">🔌</span>
             <span className="history-empty-text">请先连接服务器</span>
@@ -95,13 +138,16 @@ export function CommandHistory() {
             {filteredHistory.map((item) => (
               <button
                 key={item.id}
-                className="history-item"
+                className={`history-item ${item.configId === activeConfigId ? 'current-session' : ''}`}
                 onClick={() => handleClick(item.command)}
                 title={item.command}
               >
                 <span className="history-item-command">{item.command}</span>
-                <span className="history-item-time">
-                  {new Date(item.executedAt).toLocaleTimeString()}
+                <span className="history-item-meta">
+                  {!filterConfigId && item.configId !== activeConfigId && (
+                    <span className="history-item-config">{getConfigName(item.configId)}</span>
+                  )}
+                  <span className="history-item-time">{formatTime(item.executedAt)}</span>
                 </span>
               </button>
             ))}
