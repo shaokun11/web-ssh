@@ -9,21 +9,22 @@ interface Props {
 }
 
 export function ConnectionSidebar({ onConnect }: Props) {
-  const { currentConfig, isConnected, configs, setConfigs, disconnect, ws } = useConnectionStore();
+  const { configs, sessions, activeConfigId, loadConfigs, focusSession } = useConnectionStore();
   const [editingConfig, setEditingConfig] = useState<SSHConfig | null>(null);
   const [copyingConfig, setCopyingConfig] = useState<SSHConfig | null>(null);
 
   useEffect(() => {
-    const loadConfigs = async () => {
-      const savedConfigs = await db.configs.orderBy('lastUsedAt').reverse().toArray();
-      setConfigs(savedConfigs);
-    };
     loadConfigs();
-  }, [setConfigs]);
+  }, [loadConfigs]);
+
+  // Get active session configs
+  const activeConfigs = configs.filter(c => sessions.has(c.id));
+  const savedConfigs = configs.filter(c => !sessions.has(c.id));
 
   const handleSelectConnection = async (config: SSHConfig) => {
-    // If connected and clicking the same config, do nothing
-    if (currentConfig?.id === config.id && isConnected) {
+    // If already connected, just focus the session
+    if (sessions.has(config.id)) {
+      focusSession(config.id);
       return;
     }
 
@@ -38,7 +39,7 @@ export function ConnectionSidebar({ onConnect }: Props) {
     e.stopPropagation();
     if (confirm('确定要删除这个连接配置吗？')) {
       await db.configs.delete(configId);
-      setConfigs(configs.filter(c => c.id !== configId));
+      await loadConfigs();
     }
   };
 
@@ -52,18 +53,15 @@ export function ConnectionSidebar({ onConnect }: Props) {
     setCopyingConfig(config);
   };
 
-  const handleDisconnect = () => {
-    if (ws) {
-      ws.close();
-    }
-    disconnect();
-  };
-
   const handleFormClose = () => {
     setEditingConfig(null);
     setCopyingConfig(null);
-    // Reload configs
-    db.configs.orderBy('lastUsedAt').reverse().toArray().then(setConfigs);
+    loadConfigs();
+  };
+
+  const getSessionStatus = (configId: string) => {
+    const session = sessions.get(configId);
+    return session?.status || 'disconnected';
   };
 
   return (
@@ -73,20 +71,59 @@ export function ConnectionSidebar({ onConnect }: Props) {
           <span className="sidebar-title">SSH 连接</span>
         </div>
 
-        {isConnected && currentConfig && (
-          <div className="connected-info">
-            <div>
-              <span className="connected-label">已连接:</span>
-              <span className="connected-name">{currentConfig.name}</span>
+        {/* Active Connections Section */}
+        {activeConfigs.length > 0 && (
+          <div className="sidebar-section">
+            <div className="sidebar-section-header">
+              <span className="sidebar-section-icon">🔗</span>
+              <span className="sidebar-section-title">活动连接</span>
+              <span className="sidebar-section-count">{activeConfigs.length}</span>
             </div>
-            <button className="btn-disconnect" onClick={handleDisconnect}>
-              断开
-            </button>
+            <div className="connection-list">
+              {activeConfigs.map((config) => (
+                <div
+                  key={config.id}
+                  className={`connection-item ${activeConfigId === config.id ? 'active connected' : ''}`}
+                  onClick={() => handleSelectConnection(config)}
+                >
+                  <span className={`status-dot ${getSessionStatus(config.id)}`}></span>
+                  <div className="connection-item-info">
+                    <div className="connection-item-name">{config.name}</div>
+                    <div className="connection-item-detail">
+                      {config.username}@{config.host}:{config.port}
+                    </div>
+                  </div>
+                  <div className="connection-item-actions">
+                    <button
+                      className="connection-item-action edit"
+                      onClick={(e) => handleEditConfig(e, config)}
+                      title="编辑"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      className="connection-item-action delete"
+                      onClick={(e) => handleDeleteConfig(e, config.id)}
+                      title="删除"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="sidebar-content">
-          {configs.length === 0 ? (
+        {/* Saved Connections Section */}
+        <div className="sidebar-section">
+          <div className="sidebar-section-header">
+            <span className="sidebar-section-icon">📋</span>
+            <span className="sidebar-section-title">已保存</span>
+            <span className="sidebar-section-count">{savedConfigs.length}</span>
+          </div>
+
+          {savedConfigs.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">📡</span>
               <span className="empty-text">暂无保存的连接</span>
@@ -94,13 +131,13 @@ export function ConnectionSidebar({ onConnect }: Props) {
             </div>
           ) : (
             <div className="connection-list">
-              {configs.map((config) => (
+              {savedConfigs.map((config) => (
                 <div
                   key={config.id}
-                  className={`connection-item ${currentConfig?.id === config.id && isConnected ? 'active connected' : ''} ${currentConfig?.id === config.id ? 'active' : ''}`}
+                  className={`connection-item ${activeConfigId === config.id ? 'active' : ''}`}
                   onClick={() => handleSelectConnection(config)}
                 >
-                  <span className={`status-dot ${currentConfig?.id === config.id && isConnected ? 'connected' : 'disconnected'}`}></span>
+                  <span className="status-dot disconnected"></span>
                   <div className="connection-item-info">
                     <div className="connection-item-name">{config.name}</div>
                     <div className="connection-item-detail">

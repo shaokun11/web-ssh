@@ -1,38 +1,44 @@
 import { useEffect, useState } from 'react';
-import { db, type CommandHistoryItem } from '../db';
 import { useConnectionStore } from '../store/connectionStore';
+import { useHistoryStore } from '../store/historyStore';
 import { usePreferencesStore } from '../store/preferencesStore';
 import './CommandHistory.css';
 
 export function CommandHistory() {
-  const [history, setHistory] = useState<CommandHistoryItem[]>([]);
-  const { currentConfig, ws, isConnected } = useConnectionStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const { activeConfigId, sessions } = useConnectionStore();
+  const { getCurrentHistory, loadHistory, clearHistory } = useHistoryStore();
   const { sidebarVisible, toggleSidebar } = usePreferencesStore();
 
+  const history = getCurrentHistory(activeConfigId || '');
+
+  // Load history when active config changes
   useEffect(() => {
-    if (currentConfig) {
-      db.history
-        .where('configId')
-        .equals(currentConfig.id)
-        .reverse()
-        .limit(100)
-        .toArray()
-        .then(setHistory);
+    if (activeConfigId) {
+      loadHistory(activeConfigId);
     }
-  }, [currentConfig]);
+  }, [activeConfigId, loadHistory]);
+
+  // Get current session's WebSocket
+  const currentSession = activeConfigId ? sessions.get(activeConfigId) : null;
+  const ws = currentSession?.ws;
 
   const handleClick = (command: string) => {
-    if (ws && isConnected) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'input', data: { input: command + '\r' } }));
     }
   };
 
   const handleClear = async () => {
-    if (currentConfig) {
-      await db.history.where('configId').equals(currentConfig.id).delete();
-      setHistory([]);
+    if (activeConfigId) {
+      await clearHistory(activeConfigId);
     }
   };
+
+  // Filter history by search query
+  const filteredHistory = searchQuery
+    ? history.filter(item => item.command.toLowerCase().includes(searchQuery.toLowerCase()))
+    : history;
 
   if (!sidebarVisible) {
     return (
@@ -58,22 +64,45 @@ export function CommandHistory() {
         </div>
       </div>
 
+      {/* Search box */}
+      <div className="history-search">
+        <input
+          type="text"
+          className="history-search-input"
+          placeholder="搜索命令..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       <div className="history-content">
-        {history.length === 0 ? (
+        {!activeConfigId ? (
           <div className="history-empty">
-            <span className="history-empty-icon">📋</span>
-            <span className="history-empty-text">暂无历史记录</span>
+            <span className="history-empty-icon">🔌</span>
+            <span className="history-empty-text">请先连接服务器</span>
+          </div>
+        ) : filteredHistory.length === 0 ? (
+          <div className="history-empty">
+            <span className="history-empty-icon">
+              {searchQuery ? '🔍' : '📋'}
+            </span>
+            <span className="history-empty-text">
+              {searchQuery ? '无匹配命令' : '暂无历史记录'}
+            </span>
           </div>
         ) : (
           <div className="history-list">
-            {history.map((item) => (
+            {filteredHistory.map((item) => (
               <button
                 key={item.id}
                 className="history-item"
                 onClick={() => handleClick(item.command)}
                 title={item.command}
               >
-                {item.command}
+                <span className="history-item-command">{item.command}</span>
+                <span className="history-item-time">
+                  {new Date(item.executedAt).toLocaleTimeString()}
+                </span>
               </button>
             ))}
           </div>

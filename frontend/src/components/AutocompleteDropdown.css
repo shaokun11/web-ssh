@@ -1,0 +1,51 @@
+.autocomplete-dropdown {
+  position: fixed;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 200px;
+  max-width: 400px;
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.hovered {
+  background: var(--bg-hover);
+}
+
+.autocomplete-item.selected {
+  background: var(--color-purple);
+  color: white;
+}
+
+.autocomplete-match {
+  color: var(--color-purple);
+  font-weight: 500;
+}
+
+.autocomplete-item.selected .autocomplete-match {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.autocomplete-rest {
+  color: var(--text-secondary);
+}
+
+.autocomplete-item.selected .autocomplete-rest {
+  color: rgba(255, 255, 255, 0.8);
+}

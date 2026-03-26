@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
-import { Terminal } from './components/Terminal';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
 import { ConnectionForm } from './components/ConnectionForm';
 import { CommandHistory } from './components/CommandHistory';
 import { ConnectionSidebar } from './components/ConnectionSidebar';
+import { TerminalContainer } from './components/TerminalContainer';
 import { usePreferencesStore } from './store/preferencesStore';
 import { useConnectionStore } from './store/connectionStore';
 import { db, type SSHConfig } from './db';
@@ -14,7 +14,7 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [formConfig, setFormConfig] = useState<SSHConfig | null>(null);
   const { theme } = usePreferencesStore();
-  const { isConnected, loadConfigs, setWs, setConnected, setCurrentConfig } = useConnectionStore();
+  const { loadConfigs, connect, updateSessionWs, updateSessionStatus, sessions } = useConnectionStore();
 
   // Load configs on mount
   useEffect(() => {
@@ -29,16 +29,14 @@ function App() {
 
   // Connect to SSH server
   const connectToServer = useCallback((config: SSHConfig) => {
-    // Close existing connection if any
-    const store = useConnectionStore.getState();
-    if (store.ws) {
-      store.ws.close();
+    // Check if already connected
+    if (sessions.has(config.id)) {
+      // Already connected, just focus
+      return;
     }
 
-    // Create new WebSocket connection
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-    const ws = new WebSocket(wsUrl);
-    ws.binaryType = 'arraybuffer'; // Important: receive binary data as ArrayBuffer
+    // Create new WebSocket connection using store's connect method
+    const ws = connect(config);
 
     ws.onopen = () => {
       // Send connect message
@@ -49,6 +47,7 @@ function App() {
           port: config.port,
           username: config.username,
           privateKey: config.privateKey,
+          password: config.password,
         }
       }));
     };
@@ -57,10 +56,8 @@ function App() {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'connected') {
-          if ((msg.data as { success: boolean }).success) {
-            setWs(ws);
-            setConnected(true);
-            setCurrentConfig(config);
+          if (msg.data?.success) {
+            updateSessionStatus(config.id, 'connected');
             setShowForm(false);
             setFormConfig(null);
 
@@ -68,7 +65,8 @@ function App() {
             db.configs.update(config.id, { lastUsedAt: new Date() });
           }
         } else if (msg.type === 'error') {
-          console.error('SSH Error:', (msg.data as { message: string }).message);
+          console.error('SSH Error:', msg.data?.message);
+          updateSessionStatus(config.id, 'disconnected');
         }
       } catch {
         // Ignore parse errors
@@ -77,13 +75,14 @@ function App() {
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
+      updateSessionStatus(config.id, 'disconnected');
     };
 
     ws.onclose = () => {
-      setConnected(false);
-      setWs(null);
+      updateSessionStatus(config.id, 'disconnected');
+      updateSessionWs(config.id, null);
     };
-  }, [setWs, setConnected, setCurrentConfig]);
+  }, [connect, updateSessionStatus, updateSessionWs, sessions]);
 
   // Handle new connection from form
   const handleNewConnection = useCallback((config: SSHConfig) => {
@@ -92,21 +91,12 @@ function App() {
 
   // Handle reconnect from sidebar
   const handleReconnect = useCallback((config: SSHConfig) => {
-    console.log('[App] handleReconnect called with config:', {
-      name: config.name,
-      hasPrivateKey: !!config.privateKey,
-      hasPassword: !!config.password,
-      passwordLength: config.password?.length || 0
-    });
-
     // Check if we have credentials saved (either privateKey or password)
     if (!config.privateKey && !config.password) {
-      console.log('[App] No credentials saved, showing form');
       // No credentials saved, show form with config data
       setFormConfig(config);
       setShowForm(true);
     } else {
-      console.log('[App] Connecting directly with saved credentials');
       // Connect directly with saved credentials
       connectToServer(config);
     }
@@ -118,6 +108,11 @@ function App() {
     setShowForm(true);
   }, []);
 
+  // Handle terminal container's new connection request
+  const handleTerminalNewConnection = useCallback(() => {
+    handleCreateNewConnection();
+  }, [handleCreateNewConnection]);
+
   return (
     <div className="app" data-theme={theme}>
       <Header onNewConnection={handleCreateNewConnection} />
@@ -126,18 +121,7 @@ function App() {
         <ConnectionSidebar onConnect={handleReconnect} />
 
         <div className="main-content">
-          {isConnected ? (
-            <Terminal />
-          ) : (
-            <div className="welcome-screen">
-              <div className="welcome-icon">🖥️</div>
-              <h2 className="welcome-title">欢迎使用 Web SSH</h2>
-              <p className="welcome-subtitle">点击"新建连接"开始您的 SSH 会话</p>
-              <button className="btn btn-primary btn-lg" onClick={handleCreateNewConnection}>
-                + 新建连接
-              </button>
-            </div>
-          )}
+          <TerminalContainer onNewConnection={handleTerminalNewConnection} />
           <VirtualKeyboard />
         </div>
 

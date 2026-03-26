@@ -16,13 +16,15 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
   const [host, setHost] = useState(initialConfig?.host || '');
   const [port, setPort] = useState(String(initialConfig?.port || 22));
   const [username, setUsername] = useState(initialConfig?.username || '');
-  const [authMethod, setAuthMethod] = useState<'key' | 'password'>('key');
+  const [authMethod, setAuthMethod] = useState<'key' | 'password'>(
+    initialConfig?.privateKey ? 'key' : initialConfig?.password ? 'password' : 'key'
+  );
   const [privateKey, setPrivateKey] = useState(initialConfig?.privateKey || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { addConfig, setConnected, setCurrentConfig, setWs } = useConnectionStore();
+  const { addConfig, loadConfigs } = useConnectionStore();
 
   // Reset form when initialConfig changes
   useEffect(() => {
@@ -32,6 +34,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
       setPort(String(initialConfig.port));
       setUsername(initialConfig.username);
       setPrivateKey(initialConfig.privateKey || '');
+      setAuthMethod(initialConfig.privateKey ? 'key' : initialConfig.password ? 'password' : 'key');
     }
   }, [initialConfig]);
 
@@ -69,7 +72,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
     }
   };
 
-  const handleSave = async (connect: boolean = true) => {
+  const handleSave = async (shouldConnect: boolean = true) => {
     if (!host || !username) {
       setError('请填写主机地址和用户名');
       return;
@@ -80,7 +83,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
       return;
     }
 
-    if (authMethod === 'password' && !password) {
+    if (authMethod === 'password' && !password && shouldConnect) {
       setError('请填写密码');
       return;
     }
@@ -103,66 +106,23 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
     try {
       // Save to database
-      if (mode === 'edit') {
-        await db.configs.update(config.id, config);
+      if (mode === 'edit' && initialConfig?.id) {
+        await db.configs.update(initialConfig.id, config);
       } else {
         await db.configs.add(config);
         addConfig(config);
       }
 
-      if (connect) {
-        // Connect via WebSocket
-        const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-        const ws = new WebSocket(wsUrl);
+      // Reload configs
+      await loadConfigs();
 
-        ws.onopen = () => {
-          ws.send(JSON.stringify({
-            type: 'connect',
-            data: {
-              host: config.host,
-              port: config.port,
-              username: config.username,
-              privateKey: config.privateKey || '',
-              password: config.password || '',
-            }
-          }));
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            if (msg.type === 'connected') {
-              if ((msg.data as { success: boolean }).success) {
-                setWs(ws);
-                setConnected(true);
-                setCurrentConfig(config);
-                setLoading(false);
-                onConnect(config);
-                onClose();
-              } else {
-                setError('连接失败');
-                setLoading(false);
-                ws.close();
-              }
-            } else if (msg.type === 'error') {
-              setError((msg.data as { message: string }).message);
-              setLoading(false);
-              ws.close();
-            }
-          } catch {
-            // Ignore parse errors
-          }
-        };
-
-        ws.onerror = () => {
-          setError('WebSocket 连接失败');
-          setLoading(false);
-        };
-      } else {
-        // Just save, don't connect
-        setLoading(false);
-        onClose();
+      if (shouldConnect) {
+        // Trigger connection via parent
+        onConnect(config);
       }
+
+      setLoading(false);
+      onClose();
     } catch (err) {
       setError('操作失败');
       setLoading(false);
