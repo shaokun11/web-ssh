@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { VirtualKeyboard } from './components/VirtualKeyboard';
 import { ConnectionForm } from './components/ConnectionForm';
-import { CommandHistory } from './components/CommandHistory';
 import { ConnectionSidebar } from './components/ConnectionSidebar';
 import { TerminalContainer } from './components/TerminalContainer';
+import { QuickCommandsPanel } from './components/QuickCommandsPanel';
 import { usePreferencesStore } from './store/preferencesStore';
 import { useConnectionStore } from './store/connectionStore';
 import { db, type SSHConfig } from './db';
@@ -122,7 +122,7 @@ function App() {
           <VirtualKeyboard />
         </div>
 
-        <CommandHistory />
+        <QuickCommandsPanel onNewConnection={handleCreateNewConnection} />
       </main>
 
       {showForm && (

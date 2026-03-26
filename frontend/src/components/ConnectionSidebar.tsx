@@ -45,20 +45,11 @@ export function ConnectionSidebar({ onConnect }: Props) {
     focusSession(sessionId);
   };
 
-  // Handle clicking on a saved config (no active session)
+  // Handle clicking on a saved config - always creates new connection
   const handleConfigClick = async (config: SSHConfig) => {
-    // Check if already has active sessions
-    const activeSessions = sessionsByConfigId.get(config.id);
-    if (activeSessions && activeSessions.length > 0) {
-      // Focus the most recent session
-      focusSession(activeSessions[0].id);
-      return;
-    }
-
     // Update last used time
     await db.configs.update(config.id, { lastUsedAt: new Date() });
-
-    // Trigger new connection
+    // Always create a new connection
     onConnect(config);
   };
 
