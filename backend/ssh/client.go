@@ -53,6 +53,23 @@ func (c *Client) NewSession() (*Session, error) {
 		return nil, err
 	}
 
+	// Request PTY (pseudo-terminal) - essential for proper terminal emulation
+	// Using xterm-256color for full color support
+	modes := ssh.TerminalModes{
+		ssh.ECHO:          1,     // Enable echo
+		ssh.TTY_OP_ISPEED: 14400, // Input speed = 14.4kbaud
+		ssh.TTY_OP_OSPEED: 14400, // Output speed = 14.4kbaud
+		ssh.ICANON:        1,     // Canonical mode
+		ssh.ISIG:          1,     // Signal characters enabled
+	}
+
+	// Request PTY with default size (will be resized later via WindowChange)
+	err = session.RequestPty("xterm-256color", 40, 120, modes)
+	if err != nil {
+		session.Close()
+		return nil, fmt.Errorf("failed to request PTY: %w", err)
+	}
+
 	stdin, err := session.StdinPipe()
 	if err != nil {
 		session.Close()
