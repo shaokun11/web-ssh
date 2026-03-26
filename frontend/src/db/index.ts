@@ -7,6 +7,7 @@ export interface SSHConfig {
   port: number;
   username: string;
   privateKey: string;
+  password?: string;
   createdAt: Date;
   lastUsedAt?: Date;
 }

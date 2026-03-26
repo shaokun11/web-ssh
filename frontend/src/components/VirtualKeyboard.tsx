@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useConnectionStore } from '../store/connectionStore';
+import './VirtualKeyboard.css';
 
 interface KeyButton {
   label: string;
@@ -23,6 +24,7 @@ const comboKeys: KeyButton[] = [
   { label: 'Ctrl+C', value: '\x03' },
   { label: 'Ctrl+D', value: '\x04' },
   { label: 'Ctrl+Z', value: '\x1a' },
+  { label: 'Ctrl+L', value: '\x0c' },
 ];
 
 export function VirtualKeyboard() {
@@ -58,56 +60,52 @@ export function VirtualKeyboard() {
     ws.send(JSON.stringify({ type: 'input', data: { input: value } }));
   };
 
+  if (!isConnected) return null;
+
   return (
-    <div className="bg-gray-800 dark:bg-gray-900 border-t border-gray-700 p-2 md:hidden">
-      <div className="flex flex-wrap gap-1 justify-center">
+    <div className="keyboard">
+      <div className="keyboard-row">
         {basicKeys.map((key) => (
           <button
             key={key.label}
+            className="keyboard-key"
             onClick={() => sendKey(key)}
-            className={`px-3 py-2 rounded text-white text-sm font-medium ${
-              (key.combo === 'ctrl' && ctrlHeld) || (key.combo === 'alt' && altHeld)
-                ? 'bg-blue-600'
-                : 'bg-gray-700 hover:bg-gray-600'
-            }`}
           >
             {key.label}
           </button>
         ))}
         <button
+          className={`keyboard-key ${ctrlHeld ? 'keyboard-key-active' : ''}`}
           onClick={() => sendKey({ label: 'Ctrl', value: '', combo: 'ctrl' })}
-          className={`px-3 py-2 rounded text-white text-sm font-medium ${
-            ctrlHeld ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
-          }`}
         >
           Ctrl
         </button>
         <button
+          className={`keyboard-key ${altHeld ? 'keyboard-key-active' : ''}`}
           onClick={() => sendKey({ label: 'Alt', value: '', combo: 'alt' })}
-          className={`px-3 py-2 rounded text-white text-sm font-medium ${
-            altHeld ? 'bg-blue-600' : 'bg-gray-700 hover:bg-gray-600'
-          }`}
         >
           Alt
         </button>
       </div>
-      <div className="flex gap-1 justify-center mt-1">
+
+      <div className="keyboard-row">
         {arrowKeys.map((key) => (
           <button
             key={key.label}
+            className="keyboard-key keyboard-key-arrow"
             onClick={() => sendKey(key)}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white text-lg"
           >
             {key.label}
           </button>
         ))}
       </div>
-      <div className="flex gap-1 justify-center mt-1">
+
+      <div className="keyboard-row">
         {comboKeys.map((key) => (
           <button
             key={key.label}
+            className="keyboard-key keyboard-key-combo"
             onClick={() => sendKey(key)}
-            className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm font-medium"
           >
             {key.label}
           </button>

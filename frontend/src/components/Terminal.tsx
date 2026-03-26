@@ -3,92 +3,72 @@ import { Terminal as XTerminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { useConnectionStore } from '../store/connectionStore';
-import { usePreferencesStore } from '../store/preferencesStore';
+import './Terminal.css';
 
-const darkTheme = {
-  background: '#1a1b26',
-  foreground: '#c0caf5',
-  cursor: '#c0caf5',
-  cursorAccent: '#c0caf5',
-  selectionBackground: '#515c7e',
-  black: '#15161e',
-  red: '#f7768e',
-  green: '#9ece6a',
-  yellow: '#e0af68',
-  blue: '#7aa2f7',
-  magenta: '#bb9af7',
-  cyan: '#7dcfff',
-  white: '#a9b1d6',
-  brightBlack: '#414868',
-  brightRed: '#ff899d',
-  brightGreen: '#b9f8c3',
-  brightYellow: '#ffc767',
-  brightBlue: '#8db4fe',
-  brightMagenta: '#c7a0dc',
-  brightCyan: '#a4e5ef',
-  brightWhite: '#c0caf5',
-};
-
-const lightTheme = {
-  background: '#ffffff',
-  foreground: '#24292e',
-  cursor: '#24292e',
-  cursorAccent: '#24292e',
-  selectionBackground: '#b6e3ff',
-  black: '#24292e',
-  red: '#d73a49',
-  green: '#28a745',
-  yellow: '#ffd33d',
-  blue: '#0366d6',
-  magenta: '#6f42c1',
-  cyan: '#1b6fbd',
-  white: '#586069',
-  brightBlack: '#6a737d',
-  brightRed: '#cb2431',
-  brightGreen: '#22863a',
-  brightYellow: '#b08800',
-  brightBlue: '#005cc5',
-  brightMagenta: '#5432b4',
-  brightCyan: '#3192aa',
-  brightWhite: '#959da5',
+// Dracula terminal theme
+const draculaTheme = {
+  background: '#282a36',
+  foreground: '#f8f8f2',
+  cursor: '#f8f8f2',
+  cursorAccent: '#282a36',
+  selectionBackground: '#44475a',
+  selectionForeground: '#f8f8f2',
+  black: '#000000',
+  red: '#ff5555',
+  green: '#50fa7b',
+  yellow: '#f1fa8c',
+  blue: '#bd93f9',
+  magenta: '#ff79c6',
+  cyan: '#8be9fd',
+  white: '#f8f8f2',
+  brightBlack: '#6272a4',
+  brightRed: '#ff6e6e',
+  brightGreen: '#69ff94',
+  brightYellow: '#ffffa5',
+  brightBlue: '#d6acff',
+  brightMagenta: '#ff92df',
+  brightCyan: '#a4ffff',
+  brightWhite: '#ffffff',
 };
 
 export function Terminal() {
-  const terminalRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
 
-  const { ws, isConnected } = useConnectionStore();
-  const { theme, fontSize } = usePreferencesStore();
+  const { ws, isConnected, currentConfig } = useConnectionStore();
 
   // Initialize terminal
   useEffect(() => {
-    if (!terminalRef.current || xtermRef.current) return;
+    if (!containerRef.current || xtermRef.current) return;
 
     const xterm = new XTerminal({
-      fontSize,
-      theme: theme === 'dark' ? darkTheme : lightTheme,
-      fontFamily: 'Monaco, Menlo, "Courier New", monospace',
+      fontSize: 13,
+      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+      lineHeight: 1.5,
+      theme: draculaTheme,
       cursorBlink: true,
       cursorStyle: 'block',
+      allowTransparency: true,
     });
 
     const fitAddon = new FitAddon();
     xterm.loadAddon(fitAddon);
 
-    xterm.open(terminalRef.current);
+    xterm.open(containerRef.current);
     fitAddon.fit();
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // Handle resize
+    // Handle window resize
     const handleResize = () => {
       if (fitAddonRef.current && xtermRef.current) {
         fitAddonRef.current.fit();
         const dims = fitAddonRef.current.proposeDimensions();
-        if (dims && ws && isConnected) {
-          ws.send(JSON.stringify({
+        if (dims && wsRef.current && isConnected) {
+          wsRef.current.send(JSON.stringify({
             type: 'resize',
             data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
           }));
@@ -98,54 +78,89 @@ export function Terminal() {
 
     window.addEventListener('resize', handleResize);
 
-    // Handle input
+    // Handle terminal input
     xterm.onData((data) => {
-      if (ws && isConnected) {
-        ws.send(JSON.stringify({ type: 'input', data: { input: data } }));
+      if (wsRef.current && isConnected) {
+        wsRef.current.send(JSON.stringify({ type: 'input', data: { input: data } }));
       }
     });
+
+    // Show welcome message
+    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
+    xterm.writeln('\x1b[1;35m  WebSSH Terminal - Dracula Theme\x1b[0m');
+    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
+    xterm.writeln('');
 
     return () => {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
 
-  // Update theme
-  useEffect(() => {
-    if (xtermRef.current) {
-      xtermRef.current.options.theme = theme === 'dark' ? darkTheme : lightTheme;
-    }
-  }, [theme]);
-
-  // Update font size
-  useEffect(() => {
-    if (xtermRef.current) {
-      xtermRef.current.options.fontSize = fontSize;
-      fitAddonRef.current?.fit();
-    }
-  }, [fontSize]);
-
-  // Handle WebSocket messages
+  // Handle WebSocket connection
   useEffect(() => {
     if (!ws) return;
 
-    ws.onmessage = (event) => {
+    wsRef.current = ws;
+
+    const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === 'output' && xtermRef.current) {
           xtermRef.current.write((msg.data as { output: string }).output);
+        } else if (msg.type === 'error') {
+          if (xtermRef.current) {
+            xtermRef.current.writeln('');
+            xtermRef.current.writeln(`\x1b[1;31mError: ${(msg.data as { message: string }).message}\x1b[0m`);
+          }
+        } else if (msg.type === 'connected') {
+          if (xtermRef.current) {
+            xtermRef.current.writeln(`\x1b[1;32mConnected to ${currentConfig?.host}\x1b[0m`);
+            xtermRef.current.writeln('');
+          }
+          // Send initial resize
+          if (fitAddonRef.current) {
+            const dims = fitAddonRef.current.proposeDimensions();
+            if (dims) {
+              ws.send(JSON.stringify({
+                type: 'resize',
+                data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
+              }));
+            }
+          }
         }
       } catch {
         // Ignore parse errors
       }
     };
-  }, [ws]);
+
+    ws.addEventListener('message', handleMessage);
+
+    return () => {
+      ws.removeEventListener('message', handleMessage);
+    };
+  }, [ws, currentConfig]);
+
+  // Fit terminal when connected
+  useEffect(() => {
+    if (isConnected && fitAddonRef.current) {
+      setTimeout(() => {
+        fitAddonRef.current?.fit();
+      }, 100);
+    }
+  }, [isConnected]);
 
   return (
-    <div
-      ref={terminalRef}
-      className="h-full w-full"
-      style={{ backgroundColor: theme === 'dark' ? '#1a1b26' : '#ffffff' }}
-    />
+    <div className="terminal-wrapper">
+      <div className="terminal-tabs">
+        <div className="terminal-tab active">
+          <span className="terminal-tab-title">
+            {currentConfig?.name || 'Terminal'}
+          </span>
+          <button className="terminal-tab-close">×</button>
+        </div>
+        <button className="terminal-tab-add" title="新建标签页">+</button>
+      </div>
+      <div className="terminal-container" ref={containerRef}></div>
+    </div>
   );
 }

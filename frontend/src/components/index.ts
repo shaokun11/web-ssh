@@ -3,3 +3,4 @@ export { VirtualKeyboard } from './VirtualKeyboard';
 export { ConnectionForm } from './ConnectionForm';
 export { CommandHistory } from './CommandHistory';
 export { Header } from './Header';
+export { ConnectionSidebar } from './ConnectionSidebar';

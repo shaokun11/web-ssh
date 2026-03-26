@@ -1,37 +1,28 @@
 import { useState, useEffect } from 'react';
-import {
-  Terminal,
-  VirtualKeyboard,
-  ConnectionForm,
-  CommandHistory,
-  Header,
-} from './components';
+import { Header } from './components/Header';
+import { Terminal } from './components/Terminal';
+import { VirtualKeyboard } from './components/VirtualKeyboard';
+import { ConnectionForm } from './components/ConnectionForm';
+import { CommandHistory } from './components/CommandHistory';
+import { ConnectionSidebar } from './components/ConnectionSidebar';
 import { usePreferencesStore } from './store/preferencesStore';
 import { useConnectionStore } from './store/connectionStore';
-import { db } from './db/index';
+import './App.css';
 
 function App() {
   const [showForm, setShowForm] = useState(false);
   const { theme } = usePreferencesStore();
-  const { isConnected, setCurrentConfig } = useConnectionStore();
+  const { isConnected, loadConfigs } = useConnectionStore();
+
+  // Load configs on mount
+  useEffect(() => {
+    loadConfigs();
+  }, [loadConfigs]);
 
   // Apply theme class to document
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
-
-  // Load last used config on mount
-  useEffect(() => {
-    db.configs
-      .orderBy('lastUsedAt')
-      .reverse()
-      .first()
-      .then((config) => {
-        if (config) {
-          setCurrentConfig(config);
-        }
-      });
-  }, [setCurrentConfig]);
 
   // Show connection form if not connected
   useEffect(() => {
@@ -41,26 +32,28 @@ function App() {
   }, [isConnected]);
 
   return (
-    <div className={`h-screen flex flex-col ${theme}`}>
+    <div className="app" data-theme={theme}>
       <Header onNewConnection={() => setShowForm(true)} />
 
-      <main className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-hidden">
-            {isConnected ? (
-              <Terminal />
-            ) : (
-              <div className="h-full flex items-center justify-center bg-gray-900 text-gray-400">
-                <div className="text-center">
-                  <div className="text-6xl mb-4">🖥️</div>
-                  <p className="text-xl mb-2">欢迎使用 Web SSH</p>
-                  <p className="text-sm text-gray-500">点击"新建连接"开始</p>
-                </div>
-              </div>
-            )}
-          </div>
+      <main className="main">
+        <ConnectionSidebar onNewConnection={() => setShowForm(true)} />
+
+        <div className="main-content">
+          {isConnected ? (
+            <Terminal />
+          ) : (
+            <div className="welcome-screen">
+              <div className="welcome-icon">🖥️</div>
+              <h2 className="welcome-title">欢迎使用 Web SSH</h2>
+              <p className="welcome-subtitle">点击"新建连接"开始您的 SSH 会话</p>
+              <button className="btn btn-primary btn-lg" onClick={() => setShowForm(true)}>
+                + 新建连接
+              </button>
+            </div>
+          )}
           <VirtualKeyboard />
         </div>
+
         <CommandHistory />
       </main>
 

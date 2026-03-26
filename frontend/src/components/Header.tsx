@@ -1,5 +1,6 @@
 import { usePreferencesStore } from '../store/preferencesStore';
 import { useConnectionStore } from '../store/connectionStore';
+import './Header.css';
 
 interface Props {
   onNewConnection: () => void;
@@ -10,39 +11,44 @@ export function Header({ onNewConnection }: Props) {
   const { isConnected, currentConfig, disconnect } = useConnectionStore();
 
   return (
-    <header className="bg-gray-900 dark:bg-gray-950 text-white px-4 py-3 flex items-center justify-between flex-shrink-0">
-      <div className="flex items-center gap-4">
-        <h1 className="text-lg font-bold">Web SSH</h1>
+    <header className="header">
+      <div className="header-left">
+        <div className="logo">
+          <span className="logo-icon">🖥️</span>
+          <span className="logo-text">WebSSH</span>
+        </div>
+
         {isConnected && currentConfig && (
-          <span className="text-sm text-green-400 flex items-center gap-1">
-            <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-            {currentConfig.name}
-          </span>
+          <div className="connection-status">
+            <span className="status-dot connected"></span>
+            <span className="connection-info">{currentConfig.name}</span>
+            <span className="connection-detail">
+              {currentConfig.username}@{currentConfig.host}
+            </span>
+          </div>
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="header-right">
         <button
+          className="btn btn-ghost btn-icon"
           onClick={toggleTheme}
-          className="p-2 hover:bg-gray-800 rounded transition-colors"
           title={theme === 'dark' ? '切换到亮色' : '切换到暗色'}
         >
           {theme === 'dark' ? '☀️' : '🌙'}
         </button>
 
+        <button className="btn btn-ghost btn-icon" title="设置">
+          ⚙️
+        </button>
+
         {isConnected ? (
-          <button
-            onClick={disconnect}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 rounded text-sm transition-colors"
-          >
-            断开
+          <button className="btn btn-danger" onClick={disconnect}>
+            断开连接
           </button>
         ) : (
-          <button
-            onClick={onNewConnection}
-            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded text-sm transition-colors"
-          >
-            新建连接
+          <button className="btn btn-primary" onClick={onNewConnection}>
+            + 新建连接
           </button>
         )}
       </div>
