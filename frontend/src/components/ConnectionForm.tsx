@@ -126,8 +126,9 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
       setLoading(false);
       onClose();
-    } catch (err) {
-      setError(lang === 'zh' ? '操作失败' : 'Operation failed');
+    } catch (error) {
+      // Log the error for debugging
+      setError(error instanceof Error ? error.message : (lang === 'zh' ? '操作失败' : 'Operation failed'));
       setLoading(false);
     }
   };

@@ -148,7 +148,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     });
   },
 
-  getDisplayHistory: (_activeConfigId: string | null) => {
+  getDisplayHistory: (activeConfigId: string | null) => {
     const { filterConfigId, globalHistory, histories } = get();
 
     // If filter is set to a specific config, show only that
@@ -156,7 +156,9 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       return histories.get(filterConfigId) || [];
     }
 
-    // If filter is 'all' (null), show all history but highlight current session
+    // If filter is 'all' (null), show all history
+    // Note: activeConfigId can be used in the future to highlight current session's commands
+    void activeConfigId;
     // Sort by time, most recent first
     return globalHistory.slice(0, 100);
   },

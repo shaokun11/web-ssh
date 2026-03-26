@@ -94,6 +94,112 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
   const allSessions = getAllSessions();
   const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
 
+  // Setup terminal handlers for a session
+  const setupTerminalHandlers = useCallback((
+    sessionId: string,
+    ws: WebSocket,
+    xterm: XTerminal,
+    fitAddon: FitAddon
+  ) => {
+    let currentLine = '';
+
+    // Handle incoming messages - pass through directly to xterm
+    // This allows ANSI escape sequences to work properly (top, vim, etc.)
+    const handleMessage = (event: MessageEvent) => {
+      // Binary message (terminal output) - pass directly to xterm
+      // xterm.js handles ANSI escape sequences correctly
+      if (event.data instanceof ArrayBuffer) {
+        const decoder = new TextDecoder('utf-8');
+        const output = decoder.decode(event.data);
+        xterm.write(output);
+        return;
+      }
+
+      // Text message (control messages)
+      if (typeof event.data === 'string') {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'error') {
+            xterm.writeln('');
+            xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
+            updateSessionStatus(sessionId, 'disconnected');
+          } else if (msg.type === 'connected') {
+            updateSessionStatus(sessionId, 'connected');
+            // Send terminal size
+            const dims = fitAddon.proposeDimensions();
+            if (dims) {
+              ws.send(JSON.stringify({
+                type: 'resize',
+                data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
+              }));
+            }
+          }
+        } catch {
+          // Raw text - pass to xterm
+          xterm.write(event.data);
+        }
+      }
+    };
+
+    // Handle terminal input - send directly to server
+    // Don't intercept Tab - let server handle it
+    const onDataDisposable = xterm.onData((data) => {
+      if (ws.readyState !== WebSocket.OPEN) return;
+
+      // Track current line for history (simple tracking)
+      // Note: This is a best-effort tracking; real terminal input tracking
+      // would require parsing PTY output to echo
+      if (data === '\r') {
+        // Enter pressed - try to save command
+        if (currentLine.trim()) {
+          const session = sessions.get(sessionId);
+          if (session?.configId) {
+            addCommand(session.configId, currentLine.trim());
+          }
+        }
+        currentLine = '';
+      } else if (data.charCodeAt(0) === 127 || data === '\b') {
+        // Backspace
+        currentLine = currentLine.slice(0, -1);
+      } else if (data.charCodeAt(0) >= 32) {
+        // Regular character
+        currentLine += data;
+      }
+
+      // Send ALL input directly to server - don't intercept Tab
+      // This allows server-side autocomplete and programs like top to work
+      ws.send(JSON.stringify({
+        type: 'input',
+        data: { input: data }
+      }));
+    });
+
+    // Handle connection events
+    const handleClose = () => {
+      updateSessionStatus(sessionId, 'disconnected');
+      xterm.writeln('');
+      xterm.writeln('\x1b[1;33mConnection closed\x1b[0m');
+    };
+
+    const handleError = () => {
+      updateSessionStatus(sessionId, 'disconnected');
+      xterm.writeln('');
+      xterm.writeln('\x1b[1;31mConnection error\x1b[0m');
+    };
+
+    ws.addEventListener('message', handleMessage);
+    ws.addEventListener('close', handleClose);
+    ws.addEventListener('error', handleError);
+
+    // Store cleanup function
+    cleanupFns.current.set(sessionId, () => {
+      ws.removeEventListener('message', handleMessage);
+      ws.removeEventListener('close', handleClose);
+      ws.removeEventListener('error', handleError);
+      onDataDisposable.dispose();
+    });
+  }, [updateSessionStatus, addCommand, sessions]);
+
   // Initialize terminal for container
   useEffect(() => {
     if (!containerRef.current) return;
@@ -193,8 +299,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
         setTimeout(() => instance.fitAddon.fit(), 50);
       }
     }
-  }, [allSessions, activeSessionId, sessions, fontSize, currentTheme]);
-
+  }, [allSessions, activeSessionId, sessions, fontSize, currentTheme, updateSessionStatus, addCommand, sessions]);
   // Setup terminal handlers for a session
   const setupTerminalHandlers = useCallback((
     sessionId: string,
