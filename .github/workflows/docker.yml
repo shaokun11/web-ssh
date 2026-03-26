@@ -35,10 +35,9 @@ jobs:
       - name: Extract metadata
         id: meta
         run: |
-          echo "IMAGE_NAME=${{ github.repository }}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=shaokun11/web-ssh" >> $GITHUB_ENV
           echo "APP_VERSION=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
           echo "BUILD_TIME=$(date -u +'%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
-
           echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Build and push Docker image
@@ -48,9 +47,9 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:${{ env.SHA_SHORT }}
-            ghcr.io/${{ github.repository }}:${{ env.APP_VERSION }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/shaokun11/web-ssh:${{ env.SHA_SHORT }}
+            ghcr.io/shaokun11/web-ssh:${{ env.APP_VERSION }}
+            ghcr.io/shaokun11/web-ssh:latest
           build-args: |
             --build-arg APP_VERSION=${{ env.APP_VERSION }}
             --build-arg BUILD_TIME=${{ env.BUILD_TIME }}

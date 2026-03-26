@@ -181,6 +181,19 @@ docker-compose up -d
 # 访问 http://localhost:8080
 ```
 
+#### 从 GitHub Container Registry 拉取
+
+```bash
+# 拉取最新镜像
+docker pull ghcr.io/shaokun11/web-ssh:latest
+
+# 运行容器
+docker run -d -p 8080:8080 ghcr.io/shaokun11/web-ssh:latest
+
+# 查看日志
+docker logs -f $(docker ps -q)
+```
+
 #### 手动设置
 
 **前置条件:**
