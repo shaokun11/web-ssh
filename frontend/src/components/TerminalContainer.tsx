@@ -299,7 +299,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
         setTimeout(() => instance.fitAddon.fit(), 50);
       }
     }
-  }, [allSessions, activeSessionId, sessions, fontSize, currentTheme, updateSessionStatus, addCommand, sessions]);
+  }, [allSessions, activeSessionId, sessions, fontSize, currentTheme, setupTerminalHandlers]);
   // Setup terminal handlers for a session
   const setupTerminalHandlers = useCallback((
     sessionId: string,
