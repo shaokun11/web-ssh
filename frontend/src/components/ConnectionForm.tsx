@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { db, type SSHConfig } from '../db';
 import { useConnectionStore } from '../store/connectionStore';
 import { generateId } from '../utils/id';
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new' }: Props) {
+  const { t, i18n } = useTranslation();
   const [name, setName] = useState(initialConfig?.name || '');
   const [host, setHost] = useState(initialConfig?.host || '');
   const [port, setPort] = useState(String(initialConfig?.port || 22));
@@ -25,6 +27,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
   const [loading, setLoading] = useState(false);
 
   const { addConfig, loadConfigs } = useConnectionStore();
+  const lang = i18n.language;
 
   // Reset form when initialConfig changes
   useEffect(() => {
@@ -41,50 +44,50 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
   const getTitle = () => {
     switch (mode) {
       case 'edit':
-        return `编辑 ${initialConfig?.name || '配置'}`;
+        return lang === 'zh' ? `编辑 ${initialConfig?.name || '配置'}` : `Edit ${initialConfig?.name || 'Config'}`;
       case 'copy':
-        return '复制并新建连接';
+        return lang === 'zh' ? '复制并新建连接' : 'Copy & New Connection';
       default:
-        return '新建 SSH 连接';
+        return lang === 'zh' ? '新建 SSH 连接' : 'New SSH Connection';
     }
   };
 
   const getSubtitle = () => {
     switch (mode) {
       case 'edit':
-        return '修改连接配置';
+        return lang === 'zh' ? '修改连接配置' : 'Modify connection settings';
       case 'copy':
-        return '基于现有配置创建新连接';
+        return lang === 'zh' ? '基于现有配置创建新连接' : 'Create new from existing config';
       default:
-        return '输入服务器信息以建立连接';
+        return lang === 'zh' ? '输入服务器信息以建立连接' : 'Enter server info to connect';
     }
   };
 
   const getButtonText = () => {
-    if (loading) return '处理中...';
+    if (loading) return lang === 'zh' ? '处理中...' : 'Processing...';
     switch (mode) {
       case 'edit':
-        return '保存';
+        return lang === 'zh' ? '保存' : 'Save';
       case 'copy':
-        return '创建并连接';
+        return lang === 'zh' ? '创建并连接' : 'Create & Connect';
       default:
-        return '连接';
+        return lang === 'zh' ? '连接' : 'Connect';
     }
   };
 
   const handleSave = async (shouldConnect: boolean = true) => {
     if (!host || !username) {
-      setError('请填写主机地址和用户名');
+      setError(lang === 'zh' ? '请填写主机地址和用户名' : 'Host and username are required');
       return;
     }
 
     if (authMethod === 'key' && !privateKey) {
-      setError('请填写私钥');
+      setError(lang === 'zh' ? '请填写私钥' : 'Private key is required');
       return;
     }
 
     if (authMethod === 'password' && !password && shouldConnect) {
-      setError('请填写密码');
+      setError(lang === 'zh' ? '请填写密码' : 'Password is required');
       return;
     }
 
@@ -124,7 +127,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
       setLoading(false);
       onClose();
     } catch (err) {
-      setError('操作失败');
+      setError(lang === 'zh' ? '操作失败' : 'Operation failed');
       setLoading(false);
     }
   };
@@ -167,21 +170,21 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
           <div className="form-group">
             <label className="form-label">
-              连接名称 <span className="form-optional">(可选)</span>
+              {t('connection.name')} <span className="form-optional">({lang === 'zh' ? '可选' : 'optional'})</span>
             </label>
             <input
               type="text"
               className="input"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="我的服务器"
+              placeholder={lang === 'zh' ? '我的服务器' : 'My Server'}
             />
           </div>
 
           <div className="form-row">
             <div className="form-group flex-1">
               <label className="form-label">
-                主机地址 <span className="form-required">*</span>
+                {t('connection.host')} <span className="form-required">*</span>
               </label>
               <input
                 type="text"
@@ -192,7 +195,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
               />
             </div>
             <div className="form-group" style={{ width: '80px' }}>
-              <label className="form-label">端口</label>
+              <label className="form-label">{t('connection.port')}</label>
               <input
                 type="text"
                 className="input"
@@ -205,7 +208,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
           <div className="form-group">
             <label className="form-label">
-              用户名 <span className="form-required">*</span>
+              {t('connection.username')} <span className="form-required">*</span>
             </label>
             <input
               type="text"
@@ -217,19 +220,19 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
           </div>
 
           <div className="form-group">
-            <label className="form-label">认证方式</label>
+            <label className="form-label">{t('connection.authType')}</label>
             <div className="auth-tabs">
               <button
                 className={`auth-tab ${authMethod === 'key' ? 'active' : ''}`}
                 onClick={() => setAuthMethod('key')}
               >
-                🔑 私钥
+                🔑 {lang === 'zh' ? '私钥' : 'Key'}
               </button>
               <button
                 className={`auth-tab ${authMethod === 'password' ? 'active' : ''}`}
                 onClick={() => setAuthMethod('password')}
               >
-                🔒 密码
+                🔒 {t('connection.password')}
               </button>
             </div>
           </div>
@@ -237,7 +240,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
           {authMethod === 'key' ? (
             <div className="form-group">
               <label className="form-label">
-                私钥 <span className="form-required">*</span>
+                {t('connection.privateKey')} <span className="form-required">*</span>
               </label>
               <div className="textarea-wrapper">
                 <textarea
@@ -248,21 +251,21 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
                   rows={6}
                 />
                 <button className="textarea-action" onClick={handleLoadFile}>
-                  📁 加载文件
+                  📁 {lang === 'zh' ? '加载文件' : 'Load File'}
                 </button>
               </div>
             </div>
           ) : (
             <div className="form-group">
               <label className="form-label">
-                密码 <span className="form-required">*</span>
+                {t('connection.password')} <span className="form-required">*</span>
               </label>
               <input
                 type="password"
                 className="input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="输入密码"
+                placeholder={lang === 'zh' ? '输入密码' : 'Enter password'}
               />
             </div>
           )}
@@ -270,7 +273,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose} disabled={loading}>
-            取消
+            {t('connection.cancel')}
           </button>
           {mode === 'edit' && (
             <button
@@ -278,7 +281,7 @@ export function ConnectionForm({ onClose, initialConfig, onConnect, mode = 'new'
               onClick={() => handleSave(false)}
               disabled={loading}
             >
-              仅保存
+              {lang === 'zh' ? '仅保存' : 'Save Only'}
             </button>
           )}
           <button

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
 import './QuickCommandsPanel.css';
@@ -6,85 +7,86 @@ import './QuickCommandsPanel.css';
 const commandCategories = [
   {
     id: 'files',
-    name: '文件操作',
+    nameKey: 'terminal.fileOperations',
     icon: '📁',
     commands: [
-      { cmd: 'ls -la', desc: '列出所有文件' },
-      { cmd: 'cd /path', desc: '切换目录' },
-      { cmd: 'cp -r src dest', desc: '复制目录' },
-      { cmd: 'mv old new', desc: '移动/重命名' },
-      { cmd: 'rm -rf dir', desc: '删除目录' },
-      { cmd: 'find . -name "*.txt"', desc: '查找文件' },
+      { cmd: 'ls -la', descKey: 'List all files' },
+      { cmd: 'cd /path', descKey: 'Change directory' },
+      { cmd: 'cp -r src dest', descKey: 'Copy directory' },
+      { cmd: 'mv old new', descKey: 'Move/rename' },
+      { cmd: 'rm -rf dir', descKey: 'Delete directory' },
+      { cmd: 'find . -name "*.txt"', descKey: 'Find files' },
     ]
   },
   {
     id: 'system',
-    name: '系统监控',
+    nameKey: 'terminal.systemMonitor',
     icon: '📊',
     commands: [
-      { cmd: 'top', desc: '进程监控' },
-      { cmd: 'htop', desc: '增强监控' },
-      { cmd: 'df -h', desc: '磁盘使用' },
-      { cmd: 'du -sh *', desc: '目录大小' },
-      { cmd: 'free -h', desc: '内存使用' },
-      { cmd: 'ps aux | grep xxx', desc: '查找进程' },
+      { cmd: 'top', descKey: 'Process monitor' },
+      { cmd: 'htop', descKey: 'Enhanced monitor' },
+      { cmd: 'df -h', descKey: 'Disk usage' },
+      { cmd: 'du -sh *', descKey: 'Directory size' },
+      { cmd: 'free -h', descKey: 'Memory usage' },
+      { cmd: 'ps aux | grep xxx', descKey: 'Find process' },
     ]
   },
   {
     id: 'network',
-    name: '网络相关',
+    nameKey: 'terminal.network',
     icon: '🌐',
     commands: [
-      { cmd: 'ping google.com', desc: '测试连通' },
-      { cmd: 'curl -I url', desc: '检查响应' },
-      { cmd: 'netstat -tulpn', desc: '端口监听' },
-      { cmd: 'ss -tulpn', desc: 'Socket统计' },
-      { cmd: 'wget url', desc: '下载文件' },
-      { cmd: 'scp file user@host:/path', desc: '远程复制' },
+      { cmd: 'ping google.com', descKey: 'Test connectivity' },
+      { cmd: 'curl -I url', descKey: 'Check response' },
+      { cmd: 'netstat -tulpn', descKey: 'Port listening' },
+      { cmd: 'ss -tulpn', descKey: 'Socket stats' },
+      { cmd: 'wget url', descKey: 'Download file' },
+      { cmd: 'scp file user@host:/path', descKey: 'Remote copy' },
     ]
   },
   {
     id: 'text',
-    name: '文本处理',
+    nameKey: 'terminal.textProcessing',
     icon: '📝',
     commands: [
-      { cmd: 'grep -r "text" .', desc: '搜索文本' },
-      { cmd: 'cat file | head -20', desc: '查看开头' },
-      { cmd: 'tail -f logfile', desc: '实时日志' },
-      { cmd: 'sed -i "s/old/new/g" file', desc: '替换文本' },
-      { cmd: "awk '{print $1}'", desc: '提取字段' },
-      { cmd: 'sort file | uniq -c', desc: '排序统计' },
+      { cmd: 'grep -r "text" .', descKey: 'Search text' },
+      { cmd: 'cat file | head -20', descKey: 'View beginning' },
+      { cmd: 'tail -f logfile', descKey: 'Real-time log' },
+      { cmd: 'sed -i "s/old/new/g" file', descKey: 'Replace text' },
+      { cmd: "awk '{print $1}'", descKey: 'Extract field' },
+      { cmd: 'sort file | uniq -c', descKey: 'Sort and count' },
     ]
   },
   {
     id: 'permission',
-    name: '权限管理',
+    nameKey: 'terminal.permissions',
     icon: '🔐',
     commands: [
-      { cmd: 'chmod 755 file', desc: '修改权限' },
-      { cmd: 'chown user:group file', desc: '修改所有者' },
-      { cmd: 'sudo -u user cmd', desc: '以用户执行' },
-      { cmd: 'passwd', desc: '修改密码' },
-      { cmd: 'ssh-keygen -t rsa', desc: '生成密钥' },
-      { cmd: 'ssh-copy-id user@host', desc: '复制公钥' },
+      { cmd: 'chmod 755 file', descKey: 'Change permissions' },
+      { cmd: 'chown user:group file', descKey: 'Change owner' },
+      { cmd: 'sudo -u user cmd', descKey: 'Run as user' },
+      { cmd: 'passwd', descKey: 'Change password' },
+      { cmd: 'ssh-keygen -t rsa', descKey: 'Generate key' },
+      { cmd: 'ssh-copy-id user@host', descKey: 'Copy public key' },
     ]
   },
   {
     id: 'compress',
-    name: '压缩解压',
+    nameKey: 'terminal.compression',
     icon: '📦',
     commands: [
-      { cmd: 'tar -czvf out.tar.gz dir', desc: '压缩目录' },
-      { cmd: 'tar -xzvf file.tar.gz', desc: '解压tar' },
-      { cmd: 'zip -r out.zip dir', desc: '创建zip' },
-      { cmd: 'unzip file.zip', desc: '解压zip' },
-      { cmd: 'gzip file', desc: 'gzip压缩' },
-      { cmd: 'gunzip file.gz', desc: 'gzip解压' },
+      { cmd: 'tar -czvf out.tar.gz dir', descKey: 'Compress directory' },
+      { cmd: 'tar -xzvf file.tar.gz', descKey: 'Extract tar' },
+      { cmd: 'zip -r out.zip dir', descKey: 'Create zip' },
+      { cmd: 'unzip file.zip', descKey: 'Extract zip' },
+      { cmd: 'gzip file', descKey: 'Gzip compress' },
+      { cmd: 'gunzip file.gz', descKey: 'Gzip decompress' },
     ]
   },
 ];
 
 export function QuickCommandsPanel() {
+  const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { sessions, configs, activeSessionId } = useConnectionStore();
@@ -125,11 +127,11 @@ export function QuickCommandsPanel() {
   return (
     <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="quick-commands-header">
-        {!isCollapsed && <span className="quick-commands-title">快捷命令</span>}
+        {!isCollapsed && <span className="quick-commands-title">{t('terminal.quickCommands')}</span>}
         <button
           className="quick-commands-toggle"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          title={isCollapsed ? '展开' : '收起'}
+          title={isCollapsed ? 'Expand' : 'Collapse'}
         >
           {isCollapsed ? '◀' : '▶'}
         </button>
@@ -141,15 +143,15 @@ export function QuickCommandsPanel() {
           <div className="history-section">
             <div className="history-section-header">
               <span className="history-section-icon">📜</span>
-              <span className="history-section-title">命令历史</span>
+              <span className="history-section-title">{t('terminal.commandHistory')}</span>
               {/* Filter Dropdown */}
               <select
                 className="history-filter-select"
                 value={filterConfigId || 'all'}
                 onChange={(e) => setFilter(e.target.value === 'all' ? null : e.target.value)}
-                title="筛选历史记录"
+                title="Filter history"
               >
-                <option value="all">全部服务器</option>
+                <option value="all">{t('terminal.allServers')}</option>
                 {configs.map((config) => (
                   <option key={config.id} value={config.id}>
                     {config.name}
@@ -158,7 +160,7 @@ export function QuickCommandsPanel() {
               </select>
             </div>
             {recentCommands.length === 0 ? (
-              <div className="history-empty">暂无历史记录</div>
+              <div className="history-empty">{t('terminal.noHistory')}</div>
             ) : (
               <div className="history-list">
                 {recentCommands.map((item, idx) => (
@@ -186,7 +188,7 @@ export function QuickCommandsPanel() {
                   )}
                 >
                   <span className="category-icon">{category.icon}</span>
-                  <span className="category-name">{category.name}</span>
+                  <span className="category-name">{t(category.nameKey)}</span>
                   <span className="category-toggle">
                     {activeCategory === category.id ? '▼' : '▶'}
                   </span>
@@ -199,10 +201,10 @@ export function QuickCommandsPanel() {
                         key={idx}
                         className="command-item"
                         onClick={() => handleCommandClick(item.cmd)}
-                        title={item.desc}
+                        title={item.descKey}
                       >
                         <code className="command-code">{item.cmd}</code>
-                        <span className="command-desc">{item.desc}</span>
+                        <span className="command-desc">{item.descKey}</span>
                       </div>
                     ))}
                   </div>

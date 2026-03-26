@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -72,9 +73,12 @@ interface TerminalInstance {
 }
 
 export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
+  const { t, i18n } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalInstances = useRef<Map<string, TerminalInstance>>(new Map());
   const cleanupFns = useRef<Map<string, () => void>>(new Map());
+
+  const lang = i18n.language;
 
   const {
     sessions,
@@ -326,21 +330,21 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
         {!activeSession && (
           <div className="welcome-screen">
             <div className="welcome-icon">🖥️</div>
-            <h2 className="welcome-title">欢迎使用 Web SSH</h2>
+            <h2 className="welcome-title">{t('app.welcome')}</h2>
             <div className="welcome-privacy-notice">
               <span className="privacy-icon">🔒</span>
-              <span className="privacy-text">所有数据均保存在本地浏览器，不会上传到任何服务器</span>
+              <span className="privacy-text">{t('app.privacyNotice')}</span>
             </div>
             <button className="btn btn-primary btn-lg" onClick={onNewConnection}>
-              + 新建连接
+              {t('app.newConnection')}
             </button>
 
             <div className="quick-commands">
-              <h3 className="quick-commands-title">常用命令</h3>
+              <h3 className="quick-commands-title">{lang === 'zh' ? '常用命令' : 'Common Commands'}</h3>
               <div className="quick-commands-grid">
                 <div className="quick-command-card">
                   <span className="cmd-icon">📁</span>
-                  <span className="cmd-name">文件操作</span>
+                  <span className="cmd-name">{t('terminal.fileOperations')}</span>
                   <div className="cmd-list">
                     <code>ls -la</code>
                     <code>cd /path</code>
@@ -352,7 +356,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
                 </div>
                 <div className="quick-command-card">
                   <span className="cmd-icon">📊</span>
-                  <span className="cmd-name">系统监控</span>
+                  <span className="cmd-name">{t('terminal.systemMonitor')}</span>
                   <div className="cmd-list">
                     <code>top</code>
                     <code>htop</code>
@@ -364,7 +368,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
                 </div>
                 <div className="quick-command-card">
                   <span className="cmd-icon">🌐</span>
-                  <span className="cmd-name">网络相关</span>
+                  <span className="cmd-name">{t('terminal.network')}</span>
                   <div className="cmd-list">
                     <code>ping google.com</code>
                     <code>curl -I url</code>
@@ -376,7 +380,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
                 </div>
                 <div className="quick-command-card">
                   <span className="cmd-icon">📝</span>
-                  <span className="cmd-name">文本处理</span>
+                  <span className="cmd-name">{t('terminal.textProcessing')}</span>
                   <div className="cmd-list">
                     <code>grep -r "text" .</code>
                     <code>cat file | head -20</code>
@@ -388,7 +392,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
                 </div>
                 <div className="quick-command-card">
                   <span className="cmd-icon">🔐</span>
-                  <span className="cmd-name">权限管理</span>
+                  <span className="cmd-name">{t('terminal.permissions')}</span>
                   <div className="cmd-list">
                     <code>chmod 755 file</code>
                     <code>chown user:group file</code>
@@ -400,7 +404,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
                 </div>
                 <div className="quick-command-card">
                   <span className="cmd-icon">📦</span>
-                  <span className="cmd-name">压缩解压</span>
+                  <span className="cmd-name">{t('terminal.compression')}</span>
                   <div className="cmd-list">
                     <code>tar -czvf out.tar.gz dir</code>
                     <code>tar -xzvf file.tar.gz</code>

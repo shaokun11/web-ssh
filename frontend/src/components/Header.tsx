@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePreferencesStore } from '../store/preferencesStore';
 import { useConnectionStore } from '../store/connectionStore';
 import './Header.css';
@@ -8,7 +9,8 @@ interface Props {
 }
 
 export function Header({ onNewConnection }: Props) {
-  const { theme, toggleTheme } = usePreferencesStore();
+  const { t, i18n } = useTranslation();
+  const { theme, toggleTheme, language, setLanguage } = usePreferencesStore();
   const { getAllSessions, disconnectAllSessions, getConfig, exportConfigs, importConfigs, loadConfigs } = useConnectionStore();
   const [showSettings, setShowSettings] = useState(false);
   const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
@@ -23,6 +25,12 @@ export function Header({ onNewConnection }: Props) {
     disconnectAllSessions();
   };
 
+  const handleLanguageChange = () => {
+    const newLang = language === 'zh' ? 'en' : 'zh';
+    setLanguage(newLang);
+    i18n.changeLanguage(newLang);
+  };
+
   const handleExport = async () => {
     try {
       const jsonData = await exportConfigs();
@@ -35,10 +43,10 @@ export function Header({ onNewConnection }: Props) {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      setImportStatus({ type: 'success', message: '导出成功！' });
+      setImportStatus({ type: 'success', message: t('connection.testSuccess') });
       setTimeout(() => setImportStatus(null), 3000);
     } catch (error) {
-      setImportStatus({ type: 'error', message: `导出失败: ${error}` });
+      setImportStatus({ type: 'error', message: `${t('connection.connectFailed')}: ${error}` });
     }
   };
 
@@ -55,17 +63,16 @@ export function Header({ onNewConnection }: Props) {
       const result = await importConfigs(text);
       setImportStatus({
         type: 'success',
-        message: `导入完成！新增 ${result.added} 个配置${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复配置` : ''}`
+        message: `Import complete! Added ${result.added} configs${result.skipped > 0 ? `, skipped ${result.skipped} duplicates` : ''}`
       });
       await loadConfigs();
     } catch (error) {
       setImportStatus({
         type: 'error',
-        message: error instanceof Error ? error.message : '导入失败'
+        message: error instanceof Error ? error.message : 'Import failed'
       });
     }
 
-    // Reset file input
     e.target.value = '';
     setTimeout(() => setImportStatus(null), 5000);
   };
@@ -78,7 +85,7 @@ export function Header({ onNewConnection }: Props) {
             <div className="connection-status">
               <span className="status-dot connected"></span>
               <span className="connection-info">
-                {sessions.length > 1 ? `${sessions.length} 个会话` : activeConfig.name}
+                {sessions.length > 1 ? `${sessions.length} ${t('header.sshConnection')}` : activeConfig.name}
               </span>
               {sessions.length === 1 && (
                 <span className="connection-detail">
@@ -90,10 +97,19 @@ export function Header({ onNewConnection }: Props) {
         </div>
 
         <div className="header-right">
+          {/* Language Switch */}
+          <button
+            className="btn btn-ghost btn-icon language-switch"
+            onClick={handleLanguageChange}
+            title={language === 'zh' ? 'Switch to English' : '切换到中文'}
+          >
+            {language === 'zh' ? '🇨🇳' : '🇺🇸'}
+          </button>
+
           <button
             className="btn btn-ghost btn-icon"
             onClick={toggleTheme}
-            title={theme === 'dark' ? '切换到亮色' : '切换到暗色'}
+            title={theme === 'dark' ? '☀️' : '🌙'}
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
@@ -101,18 +117,18 @@ export function Header({ onNewConnection }: Props) {
           <button
             className="btn btn-ghost btn-icon"
             onClick={() => setShowSettings(true)}
-            title="设置"
+            title={t('header.settings')}
           >
             ⚙️
           </button>
 
           {hasActiveSessions ? (
             <button className="btn btn-danger" onClick={handleDisconnect}>
-              断开全部
+              {t('terminal.disconnectAll')}
             </button>
           ) : (
             <button className="btn btn-primary" onClick={onNewConnection}>
-              + 新建连接
+              {t('app.newConnection')}
             </button>
           )}
         </div>
@@ -132,7 +148,7 @@ export function Header({ onNewConnection }: Props) {
         <div className="modal-overlay" onClick={() => setShowSettings(false)}>
           <div className="modal modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">设置</h3>
+              <h3 className="modal-title">{t('preferences.settings')}</h3>
               <button className="modal-close" onClick={() => setShowSettings(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -147,46 +163,64 @@ export function Header({ onNewConnection }: Props) {
               <div className="settings-section privacy-notice">
                 <div className="privacy-icon">🔒</div>
                 <div className="privacy-content">
-                  <h4>数据本地存储</h4>
-                  <p>所有连接配置和命令历史均保存在您的浏览器本地（IndexedDB），不会上传到任何服务器。</p>
+                  <h4>{language === 'zh' ? '数据本地存储' : 'Local Data Storage'}</h4>
+                  <p>{t('app.privacyNotice')}</p>
                 </div>
               </div>
 
               <div className="settings-group">
+                {/* Theme */}
                 <div className="settings-item">
                   <div className="settings-item-info">
-                    <span className="settings-item-label">主题</span>
+                    <span className="settings-item-label">{t('preferences.theme')}</span>
                     <span className="settings-item-value">
-                      {theme === 'dark' ? '暗色' : '亮色'}
+                      {theme === 'dark' ? t('preferences.dark') : t('preferences.light')}
                     </span>
                   </div>
                   <button className="btn btn-ghost" onClick={toggleTheme}>
-                    {theme === 'dark' ? '☀️ 切换' : '🌙 切换'}
+                    {theme === 'dark' ? '☀️' : '🌙'}
+                  </button>
+                </div>
+
+                {/* Language */}
+                <div className="settings-item">
+                  <div className="settings-item-info">
+                    <span className="settings-item-label">{t('preferences.language')}</span>
+                    <span className="settings-item-value">
+                      {language === 'zh' ? '中文' : 'English'}
+                    </span>
+                  </div>
+                  <button className="btn btn-ghost" onClick={handleLanguageChange}>
+                    {language === 'zh' ? '🇺🇸 English' : '🇨🇳 中文'}
                   </button>
                 </div>
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section-title">配置管理</h4>
+                <h4 className="settings-section-title">{language === 'zh' ? '配置管理' : 'Configuration'}</h4>
                 <div className="settings-actions">
                   <button className="btn btn-secondary" onClick={handleExport}>
-                    📤 导出配置
+                    📤 {language === 'zh' ? '导出配置' : 'Export'}
                   </button>
                   <button className="btn btn-secondary" onClick={handleImport}>
-                    📥 导入配置
+                    📥 {language === 'zh' ? '导入配置' : 'Import'}
                   </button>
                 </div>
                 <p className="settings-hint">
-                  导出的配置文件为 JSON 格式，可在其他浏览器或设备导入
+                  {language === 'zh'
+                    ? '导出的配置文件为 JSON 格式，可在其他浏览器或设备导入'
+                    : 'Export configs as JSON, import on other devices'}
                 </p>
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section-title">关于</h4>
+                <h4 className="settings-section-title">{language === 'zh' ? '关于' : 'About'}</h4>
                 <div className="settings-about">
                   <p>WebSSH v1.0.0</p>
                   <p className="settings-about-text">
-                    基于 xterm.js 的浏览器端 SSH 客户端
+                    {language === 'zh'
+                      ? '基于 xterm.js 的浏览器端 SSH 客户端'
+                      : 'Browser-based SSH client powered by xterm.js'}
                   </p>
                 </div>
               </div>
