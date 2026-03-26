@@ -320,7 +320,7 @@ export function TerminalContainer({ onNewConnection }: TerminalContainerProps) {
         <div
           ref={containerRef}
           className="terminal-container"
-          style={{ minHeight: '100%', paddingBottom: '80px' }}
+          style={{ minHeight: '100%' }}
         />
 
         {!activeSession && (

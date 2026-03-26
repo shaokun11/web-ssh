@@ -12,11 +12,7 @@ export function ConnectionSidebar({ onConnect }: Props) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const {
     configs,
-    getAllSessions,
-    activeSessionId,
     loadConfigs,
-    focusSession,
-    disconnectSession
   } = useConnectionStore();
 
   const [editingConfig, setEditingConfig] = useState<SSHConfig | null>(null);
@@ -26,26 +22,6 @@ export function ConnectionSidebar({ onConnect }: Props) {
     loadConfigs();
   }, [loadConfigs]);
 
-  // Get all active sessions
-  const allSessions = getAllSessions();
-
-  // Group sessions by configId
-  const sessionsByConfigId = new Map<string, typeof allSessions>();
-  allSessions.forEach(session => {
-    const existing = sessionsByConfigId.get(session.configId) || [];
-    sessionsByConfigId.set(session.configId, [...existing, session]);
-  });
-
-  // Get configs with active sessions
-  const configsWithSessions = configs.filter(c => sessionsByConfigId.has(c.id));
-  // Get configs without active sessions
-  const configsWithoutSessions = configs.filter(c => !sessionsByConfigId.has(c.id));
-
-  // Handle clicking on an existing session
-  const handleSessionClick = (sessionId: string) => {
-    focusSession(sessionId);
-  };
-
   // Handle clicking on a saved config - always creates new connection
   const handleConfigClick = async (config: SSHConfig) => {
     // Update last used time
@@ -54,9 +30,15 @@ export function ConnectionSidebar({ onConnect }: Props) {
     onConnect(config);
   };
 
+  // Handle double-click - creates new connection
+  const handleConfigDoubleClick = async (config: SSHConfig) => {
+    await db.configs.update(config.id, { lastUsedAt: new Date() });
+    onConnect(config);
+  };
+
   const handleDeleteConfig = async (e: React.MouseEvent, configId: string) => {
     e.stopPropagation();
-    if (confirm('确定要删除这个连接配置吗？已连接的会话不会被关闭。')) {
+    if (confirm('确定要删除这个连接配置吗？')) {
       await db.configs.delete(configId);
       await loadConfigs();
     }
@@ -72,30 +54,10 @@ export function ConnectionSidebar({ onConnect }: Props) {
     setCopyingConfig(config);
   };
 
-  const handleDisconnectSession = (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    disconnectSession(sessionId);
-  };
-
   const handleFormClose = () => {
     setEditingConfig(null);
     setCopyingConfig(null);
     loadConfigs();
-  };
-
-  const getSessionStatusIcon = (status: string) => {
-    switch (status) {
-      case 'connected':
-        return '●';
-      case 'connecting':
-        return '◐';
-      default:
-        return '○';
-    }
-  };
-
-  const getSessionStatusClass = (status: string) => {
-    return `status-${status}`;
   };
 
   const toggleSidebar = () => {
@@ -114,62 +76,15 @@ export function ConnectionSidebar({ onConnect }: Props) {
               <span className="sidebar-title">SSH 连接</span>
             </div>
 
-        {/* Active Connections Section */}
-        {configsWithSessions.length > 0 && (
-          <div className="sidebar-section">
-            <div className="sidebar-section-header">
-              <span className="sidebar-section-icon">🔗</span>
-              <span className="sidebar-section-title">活动连接</span>
-              <span className="sidebar-section-count">{allSessions.length}</span>
-            </div>
-            <div className="connection-list">
-              {configsWithSessions.map((config) => {
-                const sessions = sessionsByConfigId.get(config.id) || [];
-                return (
-                  <div key={config.id} className="config-sessions-group">
-                    {/* Sessions for this config */}
-                    {sessions.map((session) => (
-                      <div
-                        key={session.id}
-                        className={`session-item ${activeSessionId === session.id ? 'active' : ''}`}
-                        onClick={() => handleSessionClick(session.id)}
-                      >
-                        <span className={`status-dot ${getSessionStatusClass(session.status)}`}>
-                          {getSessionStatusIcon(session.status)}
-                        </span>
-                        <div className="session-info">
-                          <div className="session-name">{session.tabName}</div>
-                          <div className="session-detail">
-                            {config.username}@{config.host}:{config.port}
-                          </div>
-                        </div>
-                        <div className="session-actions">
-                          <button
-                            className="session-action disconnect"
-                            onClick={(e) => handleDisconnectSession(e, session.id)}
-                            title="断开"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Saved Connections Section */}
         <div className="sidebar-section">
           <div className="sidebar-section-header">
             <span className="sidebar-section-icon">📋</span>
             <span className="sidebar-section-title">已保存</span>
-            <span className="sidebar-section-count">{configsWithoutSessions.length}</span>
+            <span className="sidebar-section-count">{configs.length}</span>
           </div>
 
-          {configsWithoutSessions.length === 0 ? (
+          {configs.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">📡</span>
               <span className="empty-text">暂无保存的连接</span>
@@ -177,11 +92,13 @@ export function ConnectionSidebar({ onConnect }: Props) {
             </div>
           ) : (
             <div className="connection-list">
-              {configsWithoutSessions.map((config) => (
+              {configs.map((config) => (
                 <div
                   key={config.id}
                   className="connection-item"
                   onClick={() => handleConfigClick(config)}
+                  onDoubleClick={() => handleConfigDoubleClick(config)}
+                  title="单击或双击创建新连接"
                 >
                   <span className="status-dot disconnected">○</span>
                   <div className="connection-item-info">

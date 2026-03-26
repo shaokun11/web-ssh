@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useConnectionStore } from '../store/connectionStore';
+import { useHistoryStore } from '../store/historyStore';
 import './QuickCommandsPanel.css';
 
 interface QuickCommandsPanelProps {
@@ -91,8 +92,17 @@ export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps)
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const { getAllSessions, sessions } = useConnectionStore();
+  const { globalHistory, loadAllHistory } = useHistoryStore();
 
   const hasActiveSession = getAllSessions().length > 0;
+
+  // Load history on mount
+  useEffect(() => {
+    loadAllHistory();
+  }, [loadAllHistory]);
+
+  // Get recent 20 commands
+  const recentCommands = globalHistory.slice(0, 20);
 
   const handleCommandClick = (cmd: string) => {
     // Copy to clipboard
@@ -129,6 +139,30 @@ export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps)
 
       {!isCollapsed && (
         <div className="quick-commands-content">
+          {/* CLI History Section */}
+          <div className="history-section">
+            <div className="history-section-header">
+              <span className="history-section-icon">📜</span>
+              <span className="history-section-title">命令历史</span>
+            </div>
+            {recentCommands.length === 0 ? (
+              <div className="history-empty">暂无历史记录</div>
+            ) : (
+              <div className="history-list">
+                {recentCommands.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="history-item"
+                    onClick={() => handleCommandClick(item.command)}
+                    title={item.command}
+                  >
+                    <code className="history-command">{item.command}</code>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {!hasActiveSession && (
             <div className="no-session-hint">
               <span className="hint-icon">💡</span>
