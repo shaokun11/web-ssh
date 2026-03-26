@@ -3,10 +3,6 @@ import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
 import './QuickCommandsPanel.css';
 
-interface QuickCommandsPanelProps {
-  onNewConnection: () => void;
-}
-
 const commandCategories = [
   {
     id: 'files',
@@ -88,13 +84,11 @@ const commandCategories = [
   },
 ];
 
-export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps) {
+export function QuickCommandsPanel() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const { getAllSessions, sessions, configs } = useConnectionStore();
+  const { sessions, configs } = useConnectionStore();
   const { globalHistory, loadAllHistory, filterConfigId, setFilter, histories } = useHistoryStore();
-
-  const hasActiveSession = getAllSessions().length > 0;
 
   // Load history on mount
   useEffect(() => {
@@ -185,16 +179,7 @@ export function QuickCommandsPanel({ onNewConnection }: QuickCommandsPanelProps)
             )}
           </div>
 
-          {!hasActiveSession && (
-            <div className="no-session-hint">
-              <span className="hint-icon">💡</span>
-              <span className="hint-text">连接服务器后点击命令可直接执行</span>
-              <button className="btn btn-sm btn-primary" onClick={onNewConnection}>
-                新建连接
-              </button>
-            </div>
-          )}
-
+          {/* Command Categories */}
           <div className="command-categories">
             {commandCategories.map((category) => (
               <div key={category.id} className="command-category">

@@ -122,7 +122,7 @@ function App() {
           <VirtualKeyboard />
         </div>
 
-        <QuickCommandsPanel onNewConnection={handleCreateNewConnection} />
+        <QuickCommandsPanel />
       </main>
 
       {showForm && (
