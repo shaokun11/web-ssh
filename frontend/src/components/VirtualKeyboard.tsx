@@ -1,3 +1,7 @@
+// Virtual keyboard component - currently disabled for desktop use
+// To re-enable, uncomment all code below
+
+/*
 import { useState } from 'react';
 import { useConnectionStore } from '../store/connectionStore';
 import './VirtualKeyboard.css';
@@ -118,4 +122,10 @@ export function VirtualKeyboard() {
       </div>
     </div>
   );
+}
+*/
+
+// Stub component - keyboard hidden
+export function VirtualKeyboard() {
+  return null;
 }
