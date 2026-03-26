@@ -9,6 +9,7 @@ interface Props {
 }
 
 export function ConnectionSidebar({ onConnect }: Props) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const {
     configs,
     getAllSessions,
@@ -97,12 +98,21 @@ export function ConnectionSidebar({ onConnect }: Props) {
     return `status-${status}`;
   };
 
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
   return (
     <>
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <span className="sidebar-title">SSH 连接</span>
-        </div>
+      <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+        <button className="sidebar-toggle" onClick={toggleSidebar} title={isCollapsed ? '展开侧边栏' : '收起侧边栏'}>
+          {isCollapsed ? '▶' : '◀'}
+        </button>
+        {!isCollapsed && (
+          <>
+            <div className="sidebar-header">
+              <span className="sidebar-title">SSH 连接</span>
+            </div>
 
         {/* Active Connections Section */}
         {configsWithSessions.length > 0 && (
@@ -208,6 +218,8 @@ export function ConnectionSidebar({ onConnect }: Props) {
             </div>
           )}
         </div>
+          </>
+        )}
       </aside>
 
       {/* Edit Modal */}
