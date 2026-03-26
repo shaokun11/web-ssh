@@ -25,7 +25,7 @@ class SSHDatabase extends Dexie {
 
   constructor() {
     super('WebSSH');
-    this.version(1).stores({
+    this.version(2).stores({
       configs: 'id, name, host, createdAt, lastUsedAt',
       history: 'id, configId, command, executedAt'
     });

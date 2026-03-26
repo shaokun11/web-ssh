@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db, type SSHConfig } from '../db';
 import { useConnectionStore } from '../store/connectionStore';
 import { generateId } from '../utils/id';
@@ -6,26 +6,49 @@ import './ConnectionForm.css';
 
 interface Props {
   onClose: () => void;
+  initialConfig?: SSHConfig | null;
+  onConnect: (config: SSHConfig) => void;
 }
 
 type AuthMethod = 'key' | 'password';
 
-export function ConnectionForm({ onClose }: Props) {
-  const [name, setName] = useState('');
-  const [host, setHost] = useState('');
-  const [port, setPort] = useState('22');
-  const [username, setUsername] = useState('');
+export function ConnectionForm({ onClose, initialConfig, onConnect }: Props) {
+  const [name, setName] = useState(initialConfig?.name || '');
+  const [host, setHost] = useState(initialConfig?.host || '');
+  const [port, setPort] = useState(String(initialConfig?.port || 22));
+  const [username, setUsername] = useState(initialConfig?.username || '');
   const [authMethod, setAuthMethod] = useState<AuthMethod>('key');
-  const [privateKey, setPrivateKey] = useState('');
+  const [privateKey, setPrivateKey] = useState(initialConfig?.privateKey || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { setWs, setConnected, setCurrentConfig, addConfig } = useConnectionStore();
+  const { addConfig, setConnected, setCurrentConfig, setWs } = useConnectionStore();
+
+  // Reset form when initialConfig changes
+  useEffect(() => {
+    if (initialConfig) {
+      setName(initialConfig.name);
+      setHost(initialConfig.host);
+      setPort(String(initialConfig.port));
+      setUsername(initialConfig.username);
+      setPrivateKey(initialConfig.privateKey || '');
+    }
+  }, [initialConfig]);
 
   const handleConnect = async () => {
-    if (!host || !username || (authMethod === 'key' && !privateKey) || (authMethod === 'password' && !password)) {
-      setError('请填写所有必填字段');
+    if (!host || !username) {
+      setError('请填写主机地址和用户名');
+      return;
+    }
+
+    if (authMethod === 'key' && !privateKey) {
+      setError('请填写私钥');
+      return;
+    }
+
+    if (authMethod === 'password' && !password) {
+      setError('请填写密码');
       return;
     }
 
@@ -33,20 +56,25 @@ export function ConnectionForm({ onClose }: Props) {
     setError('');
 
     const config: SSHConfig = {
-      id: generateId(),
+      id: initialConfig?.id || generateId(),
       name: name || `${username}@${host}`,
       host,
       port: parseInt(port) || 22,
       username,
       privateKey: authMethod === 'key' ? privateKey : '',
       password: authMethod === 'password' ? password : '',
-      createdAt: new Date(),
+      createdAt: initialConfig?.createdAt || new Date(),
+      lastUsedAt: new Date(),
     };
 
     try {
       // Save to database
-      await db.configs.add(config);
-      addConfig(config);
+      if (initialConfig) {
+        await db.configs.update(config.id, config);
+      } else {
+        await db.configs.add(config);
+        addConfig(config);
+      }
 
       // Connect via WebSocket
       const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
@@ -73,6 +101,7 @@ export function ConnectionForm({ onClose }: Props) {
               setConnected(true);
               setCurrentConfig(config);
               setLoading(false);
+              onConnect(config);
               onClose();
             } else {
               setError('连接失败');
@@ -93,7 +122,7 @@ export function ConnectionForm({ onClose }: Props) {
         setError('WebSocket 连接失败');
         setLoading(false);
       };
-    } catch {
+    } catch (err) {
       setError('连接失败');
       setLoading(false);
     }
@@ -121,7 +150,9 @@ export function ConnectionForm({ onClose }: Props) {
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
-            <h3 className="modal-title">新建 SSH 连接</h3>
+            <h3 className="modal-title">
+              {initialConfig ? `连接到 ${initialConfig.name}` : '新建 SSH 连接'}
+            </h3>
             <p className="modal-subtitle">输入服务器信息以建立连接</p>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>

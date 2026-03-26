@@ -30,13 +30,18 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 
   disconnect: () => {
     const state = get();
-    state.ws?.close();
+    if (state.ws) {
+      state.ws.close();
+    }
     return set({ isConnected: false, currentConfig: null, ws: null });
   },
 
-  addConfig: (config) => set((state) => ({
-    configs: [config, ...state.configs]
-  })),
+  addConfig: (config) => set((state) => {
+    // Avoid duplicates
+    const exists = state.configs.some(c => c.id === config.id);
+    if (exists) return state;
+    return { configs: [config, ...state.configs] };
+  }),
 
   loadConfigs: async () => {
     const configs = await db.configs.orderBy('lastUsedAt').reverse().toArray();

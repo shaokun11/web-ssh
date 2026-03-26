@@ -1,14 +1,14 @@
 import { useEffect } from 'react';
 import { useConnectionStore } from '../store/connectionStore';
-import { db } from '../db';
+import { db, type SSHConfig } from '../db';
 import './ConnectionSidebar.css';
 
 interface Props {
-  onNewConnection: () => void;
+  onConnect: (config: SSHConfig) => void;
 }
 
-export function ConnectionSidebar({ onNewConnection }: Props) {
-  const { currentConfig, setCurrentConfig, configs, setConfigs, isConnected } = useConnectionStore();
+export function ConnectionSidebar({ onConnect }: Props) {
+  const { currentConfig, isConnected, configs, setConfigs } = useConnectionStore();
 
   useEffect(() => {
     const loadConfigs = async () => {
@@ -18,50 +18,64 @@ export function ConnectionSidebar({ onNewConnection }: Props) {
     loadConfigs();
   }, [setConfigs]);
 
-  const handleSelectConnection = async (configId: string) => {
-    const config = configs.find(c => c.id === configId);
-    if (config) {
-      setCurrentConfig(config);
-      await db.configs.update(configId, { lastUsedAt: new Date() });
+  const handleSelectConnection = async (config: SSHConfig) => {
+    // Update last used time
+    await db.configs.update(config.id, { lastUsedAt: new Date() });
+
+    // If this is already the current config and connected, do nothing
+    if (currentConfig?.id === config.id && isConnected) {
+      return;
     }
+
+    // Trigger reconnection with this config
+    onConnect(config);
+  };
+
+  const handleDeleteConfig = async (e: React.MouseEvent, configId: string) => {
+    e.stopPropagation();
+    await db.configs.delete(configId);
+    setConfigs(configs.filter(c => c.id !== configId));
   };
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <button className="btn btn-success w-full" onClick={onNewConnection}>
-          + 新建连接
-        </button>
+        <span className="sidebar-title">SSH 连接</span>
       </div>
 
       <div className="sidebar-content">
-        <div className="sidebar-section">
-          <div className="sidebar-section-title">连接列表</div>
-          {configs.length === 0 ? (
-            <div className="empty-state">
-              <span className="empty-icon">📡</span>
-              <span className="empty-text">暂无保存的连接</span>
-            </div>
-          ) : (
-            <div className="connection-list">
-              {configs.map((config) => (
-                <div
-                  key={config.id}
-                  className={`connection-item ${currentConfig?.id === config.id ? 'active' : ''}`}
-                  onClick={() => handleSelectConnection(config.id)}
-                >
-                  <span className={`status-dot ${currentConfig?.id === config.id && isConnected ? 'connected' : 'disconnected'}`}></span>
-                  <div className="connection-item-info">
-                    <div className="connection-item-name">{config.name}</div>
-                    <div className="connection-item-detail">
-                      {config.username}@{config.host}:{config.port}
-                    </div>
+        {configs.length === 0 ? (
+          <div className="empty-state">
+            <span className="empty-icon">📡</span>
+            <span className="empty-text">暂无保存的连接</span>
+            <span className="empty-hint">点击"新建连接"添加服务器</span>
+          </div>
+        ) : (
+          <div className="connection-list">
+            {configs.map((config) => (
+              <div
+                key={config.id}
+                className={`connection-item ${currentConfig?.id === config.id ? 'active' : ''}`}
+                onClick={() => handleSelectConnection(config)}
+              >
+                <span className={`status-dot ${currentConfig?.id === config.id && isConnected ? 'connected' : 'disconnected'}`}></span>
+                <div className="connection-item-info">
+                  <div className="connection-item-name">{config.name}</div>
+                  <div className="connection-item-detail">
+                    {config.username}@{config.host}:{config.port}
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <button
+                  className="connection-item-delete"
+                  onClick={(e) => handleDeleteConfig(e, config.id)}
+                  title="删除"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </aside>
   );

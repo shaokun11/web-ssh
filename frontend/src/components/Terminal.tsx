@@ -35,91 +35,85 @@ export function Terminal() {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const { ws, isConnected, currentConfig } = useConnectionStore();
 
-  // Initialize terminal
+  // Initialize terminal once
   useEffect(() => {
-    if (!containerRef.current || xtermRef.current) return;
+    if (!containerRef.current) return;
 
-    const xterm = new XTerminal({
-      fontSize: 13,
-      fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-      lineHeight: 1.5,
-      theme: draculaTheme,
-      cursorBlink: true,
-      cursorStyle: 'block',
-      allowTransparency: true,
-    });
+    if (!xtermRef.current) {
+      const xterm = new XTerminal({
+        fontSize: 13,
+        fontFamily: "'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+        lineHeight: 1.5,
+        theme: draculaTheme,
+        cursorBlink: true,
+        cursorStyle: 'block',
+        allowTransparency: true,
+      });
 
-    const fitAddon = new FitAddon();
-    xterm.loadAddon(fitAddon);
+      const fitAddon = new FitAddon();
+      xterm.loadAddon(fitAddon);
 
-    xterm.open(containerRef.current);
-    fitAddon.fit();
+      xterm.open(containerRef.current);
+      fitAddon.fit();
 
-    xtermRef.current = xterm;
-    fitAddonRef.current = fitAddon;
+      xtermRef.current = xterm;
+      fitAddonRef.current = fitAddon;
+    }
 
     // Handle window resize
     const handleResize = () => {
       if (fitAddonRef.current && xtermRef.current) {
         fitAddonRef.current.fit();
-        const dims = fitAddonRef.current.proposeDimensions();
-        if (dims && wsRef.current && isConnected) {
-          wsRef.current.send(JSON.stringify({
-            type: 'resize',
-            data: { cols: Math.round(dims.cols), rows: Math.round(dims.rows) }
-          }));
-        }
       }
     };
 
     window.addEventListener('resize', handleResize);
-
-    // Handle terminal input
-    xterm.onData((data) => {
-      if (wsRef.current && isConnected) {
-        wsRef.current.send(JSON.stringify({ type: 'input', data: { input: data } }));
-      }
-    });
-
-    // Show welcome message
-    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
-    xterm.writeln('\x1b[1;35m  WebSSH Terminal - Dracula Theme\x1b[0m');
-    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
-    xterm.writeln('');
 
     return () => {
       window.removeEventListener('resize', handleResize);
     };
   }, []);
 
-  // Handle WebSocket connection
+  // Handle WebSocket messages and input
   useEffect(() => {
-    if (!ws) return;
+    if (!ws || !xtermRef.current) return;
 
-    wsRef.current = ws;
+    const xterm = xtermRef.current;
+    const fitAddon = fitAddonRef.current;
 
+    // Clear terminal and show welcome
+    xterm.clear();
+    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
+    xterm.writeln('\x1b[1;35m  WebSSH Terminal - Dracula Theme\x1b[0m');
+    xterm.writeln('\x1b[1;35m═══════════════════════════════════════════════════════\x1b[0m');
+    xterm.writeln('');
+    xterm.writeln('\x1b[90mConnecting to server...\x1b[0m');
+
+    // Handle incoming messages
     const handleMessage = (event: MessageEvent) => {
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'output' && xtermRef.current) {
-          xtermRef.current.write((msg.data as { output: string }).output);
+
+        if (msg.type === 'output') {
+          // Output from SSH session
+          const output = msg.data?.output || '';
+          xterm.write(output);
         } else if (msg.type === 'error') {
-          if (xtermRef.current) {
-            xtermRef.current.writeln('');
-            xtermRef.current.writeln(`\x1b[1;31mError: ${(msg.data as { message: string }).message}\x1b[0m`);
-          }
+          // Error message
+          xterm.writeln('');
+          xterm.writeln(`\x1b[1;31mError: ${msg.data?.message || 'Unknown error'}\x1b[0m`);
         } else if (msg.type === 'connected') {
-          if (xtermRef.current) {
-            xtermRef.current.writeln(`\x1b[1;32mConnected to ${currentConfig?.host}\x1b[0m`);
-            xtermRef.current.writeln('');
-          }
+          // Connected successfully
+          xterm.writeln('');
+          xterm.writeln(`\x1b[1;32m✓ Connected to ${currentConfig?.host}\x1b[0m`);
+          xterm.writeln('');
+
           // Send initial resize
-          if (fitAddonRef.current) {
-            const dims = fitAddonRef.current.proposeDimensions();
+          if (fitAddon) {
+            const dims = fitAddon.proposeDimensions();
             if (dims) {
               ws.send(JSON.stringify({
                 type: 'resize',
@@ -133,10 +127,26 @@ export function Terminal() {
       }
     };
 
+    // Handle terminal input
+    const onDataDisposable = xterm.onData((data) => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'input',
+          data: { input: data }
+        }));
+      }
+    });
+
     ws.addEventListener('message', handleMessage);
+
+    // Fit terminal
+    setTimeout(() => {
+      fitAddon?.fit();
+    }, 100);
 
     return () => {
       ws.removeEventListener('message', handleMessage);
+      onDataDisposable.dispose();
     };
   }, [ws, currentConfig]);
 
@@ -156,7 +166,7 @@ export function Terminal() {
           <span className="terminal-tab-title">
             {currentConfig?.name || 'Terminal'}
           </span>
-          <button className="terminal-tab-close">×</button>
+          <button className="terminal-tab-close" title="关闭">×</button>
         </div>
         <button className="terminal-tab-add" title="新建标签页">+</button>
       </div>
