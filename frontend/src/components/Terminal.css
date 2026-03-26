@@ -19,6 +19,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 100%; /* Ensure full height */
 }
 
 .terminal-instance.active {
@@ -28,7 +29,7 @@
 .terminal-container {
   flex: 1;
   padding: 8px;
-  padding-bottom: 8px; /* Minimal padding */
+  padding-bottom: 0; /* Remove bottom padding to eliminate gap */
   overflow-y: auto;
   overflow-x: hidden;
   background: var(--bg-primary);
@@ -37,13 +38,13 @@
 /* Mobile: Add bottom padding for virtual keyboard */
 @media (max-width: 768px) {
   .terminal-container {
-    padding-bottom: 60px;
+    padding-bottom: 0; /* No bottom padding since keyboard is hidden */
   }
 }
 
 .terminal-container .xterm {
-  height: 100%;
-  padding: 8px;
+  height: 100% !important; /* Force full height */
+  padding: 8px 8px 0 8px; /* Remove bottom padding */
 }
 
 .terminal-container .xterm-viewport {
