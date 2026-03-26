@@ -1,16 +1,261 @@
+# WebSSH - Browser-based SSH Terminal
 
-我希望从 0 到 1 构建一个运行在浏览器中的 SSH Web 应用，本质上是一个**极致私密、轻量化且适配移动端的个人云终端控制台**。
+[English](#english) | [中文](#中文)
 
-这个系统的核心设计理念是：**后端极简、前端智能、数据完全本地化**。
+---
 
-在架构上，后端将采用 Go + Echo 实现，并被刻意设计为一个“无状态的传声筒”。它不承担任何数据存储职责，不接触用户的长期信息，也不保存任何 SSH 配置或凭证。所有敏感信息（包括服务器 IP、用户名以及 SSH Private Key）全部保存在用户自己的浏览器本地。后端仅在用户发起连接时临时接收信息，并通过 WebSocket 建立 SSH 通道进行数据转发，连接结束后不留下任何痕迹，从而实现真正意义上的隐私隔离与“阅后即焚”。
+<a name="english"></a>
+## English
 
-系统的逻辑核心将前移至前端（React + Vite）。浏览器不仅是界面层，更是数据与状态的管理中心。通过 IndexedDB 或 LocalStorage 实现本地“服务器仓库”，支持用户管理多个 SSH 连接配置。同时，在前端实现一层安全机制，例如通过本地密码对私钥进行加密存储，只有解锁后才可用于建立连接，确保即使设备被访问，敏感信息仍然受到保护。
+A modern, secure, and lightweight SSH terminal that runs entirely in your browser. Built with privacy-first design - all sensitive data stays on your device.
 
-在使用体验上，该产品不仅是一个 Web 页面，更是一个面向移动场景优化的生产力工具，尤其针对 iPad 使用场景进行深度设计。为解决触控设备缺少物理键盘的问题，界面中将提供一套虚拟快捷键（如 Ctrl、Alt、Tab、Esc），以保证完整的 CLI 操作能力。同时，通过动态视口适配，确保在 iPad 弹出虚拟键盘时，终端输入区域不会被遮挡，保持流畅的交互体验。配合 PWA 技术，用户可以将该应用“安装”为类原生 App，实现全屏沉浸式使用。
+### Features
 
-界面设计方面，整体风格将保持极简与现代，支持 Light / Dark 双主题切换，并自动记忆用户偏好。主界面以终端为核心，同时在右侧提供历史命令侧边栏，记录所有输入操作，支持一键点击回填命令，大幅提升操作效率。
+- **Browser-based SSH** - No software installation required
+- **Multi-tab Sessions** - Connect to multiple servers simultaneously
+- **Privacy First** - Credentials stored locally in your browser (IndexedDB)
+- **Multi-language** - English and Chinese support
+- **Responsive Design** - Works on desktop, tablet, and mobile
+- **Dark/Light Theme** - Easy on the eyes
+- **Quick Commands** - Pre-built command templates
+- **Command History** - Track and reuse previous commands
+- **Config Import/Export** - Backup and restore your connections
 
-在交付与部署层面，系统将追求极致简化。利用 Go 的静态编译能力以及 embed 特性，将前端资源直接打包进后端二进制中，最终只需一个 Dockerfile，即可实现一键部署。无需数据库、无需额外依赖，任何服务器启动容器后即可立即使用。
+### Tech Stack
 
-整体目标是打造一个无需安装、本地数据安全、跨设备可用、体验接近原生终端的 Web SSH 工具，让用户在任意设备（尤其是 iPad 和浏览器环境）下，都能高效、安全地完成服务器管理与命令操作。
+**Frontend:**
+- React 18 + TypeScript
+- xterm.js (Terminal emulation)
+- Zustand (State management)
+- react-i18next (Internationalization)
+- IndexedDB (Local storage)
+
+**Backend:**
+- Go + Echo framework
+- ssh2 (SSH protocol)
+- gorilla/websocket (WebSocket)
+- Stateless design - no data stored on server
+
+### Quick Start
+
+#### Using Docker (Recommended)
+
+```bash
+# Build and run
+docker-compose up -d
+
+# Access at http://localhost:8080
+```
+
+#### Manual Setup
+
+**Prerequisites:**
+- Go 1.21+
+- Node.js 18+
+- pnpm (recommended)
+
+**Backend:**
+```bash
+cd backend
+go mod download
+go run main.go
+```
+
+**Frontend:**
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+### Configuration
+
+#### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `8080` |
+| `ALLOWED_ORIGINS` | CORS allowed origins | `*` |
+
+### Security Considerations
+
+This application is designed with security in mind:
+
+1. **No Server-side Data Storage** - All credentials and SSH keys are stored locally in your browser using IndexedDB
+2. **Stateless Backend** - The Go server only proxies SSH connections, no data is persisted
+3. **CORS Protection** - Configurable origin validation
+4. **SSH Host Key Verification** - Warns on unknown host keys
+
+**Important Notes:**
+- Never share your browser's IndexedDB data
+- Use HTTPS in production deployments
+- Set proper `ALLOWED_ORIGINS` for your domain
+- Consider using SSH key passphrases for additional security
+
+### Privacy
+
+Your data never leaves your device:
+- SSH credentials stored locally in browser
+- No analytics or tracking
+- No external API calls (except your SSH servers)
+- Connection configs exportable as encrypted JSON
+
+### Development
+
+```bash
+# Install dependencies
+pnpm install
+
+# Development server
+pnpm dev
+
+# Build for production
+pnpm build
+
+# Lint code
+pnpm lint
+```
+
+### License
+
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+<a name="中文"></a>
+## 中文
+
+一个现代化、安全且轻量的浏览器端 SSH 终端。采用隐私优先设计 - 所有敏感数据都保存在您的设备上。
+
+### 功能特性
+
+- **浏览器端 SSH** - 无需安装任何软件
+- **多标签会话** - 同时连接多个服务器
+- **隐私优先** - 凭证安全存储在浏览器本地 (IndexedDB)
+- **多语言支持** - 支持中英文切换
+- **响应式设计** - 适配电脑、平板和手机
+- **深色/浅色主题** - 保护您的眼睛
+- **快捷命令** - 预置常用命令模板
+- **命令历史** - 追踪并复用历史命令
+- **配置导入导出** - 备份和恢复连接配置
+
+### 技术栈
+
+**前端:**
+- React 18 + TypeScript
+- xterm.js (终端模拟)
+- Zustand (状态管理)
+- react-i18next (国际化)
+- IndexedDB (本地存储)
+
+**后端:**
+- Go + Echo 框架
+- ssh2 (SSH 协议)
+- gorilla/websocket (WebSocket)
+- 无状态设计 - 服务器不存储任何数据
+
+### 快速开始
+
+#### 使用 Docker (推荐)
+
+```bash
+# 构建并运行
+docker-compose up -d
+
+# 访问 http://localhost:8080
+```
+
+#### 手动设置
+
+**前置条件:**
+- Go 1.21+
+- Node.js 18+
+- pnpm (推荐)
+
+**后端:**
+```bash
+cd backend
+go mod download
+go run main.go
+```
+
+**前端:**
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+### 配置
+
+#### 环境变量
+
+| 变量 | 描述 | 默认值 |
+|------|------|--------|
+| `PORT` | 服务器端口 | `8080` |
+| `ALLOWED_ORIGINS` | CORS 允许的源 | `*` |
+
+### 安全注意事项
+
+本应用的安全性设计:
+
+1. **无服务器端数据存储** - 所有凭证和 SSH 密钥使用 IndexedDB 存储在浏览器本地
+2. **无状态后端** - Go 服务器仅代理 SSH 连接，不持久化任何数据
+3. **CORS 保护** - 可配置的源验证
+4. **SSH 主机密钥验证** - 未知主机密钥时会警告
+
+**重要提示:**
+- 请勿分享您浏览器的 IndexedDB 数据
+- 生产环境请使用 HTTPS
+- 为您的域名设置正确的 `ALLOWED_ORIGINS`
+- 考虑为 SSH 密钥设置密码以获得额外安全性
+
+### 隐私保护
+
+您的数据永远不会离开您的设备:
+- SSH 凭证存储在浏览器本地
+- 无分析或跟踪
+- 无外部 API 调用（除了您的 SSH 服务器）
+- 连接配置可导出为 JSON
+
+### 开发
+
+```bash
+# 安装依赖
+pnpm install
+
+# 开发服务器
+pnpm dev
+
+# 生产构建
+pnpm build
+
+# 代码检查
+pnpm lint
+```
+
+### 许可证
+
+MIT 许可证 - 详见 [LICENSE](LICENSE)。
+
+---
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## Author
+
+Built with love for the open source community.
+
+## Acknowledgments
+
+- [xterm.js](https://xtermjs.org/) - Terminal emulator for the web
+- [ssh2](https://github.com/mscdex/ssh2) - SSH2 client and server modules
+- [Echo](https://echo.labstack.com/) - High performance Go web framework
