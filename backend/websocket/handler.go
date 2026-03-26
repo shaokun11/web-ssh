@@ -1,20 +1,113 @@
 package websocket
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 
+	"backend/config"
 	"backend/ssh"
 )
 
+var (
+	ErrTooManyConnections = &WebsocketError{Code: "TOO_MANY_CONNECTIONS", Message: "Maximum concurrent connections reached"}
+	ErrMessageTooLarge    = &WebsocketError{Code: "MESSAGE_TOO_LARGE", Message: "Message exceeds maximum size"}
+	ErrInputTooLong       = &WebsocketError{Code: "INPUT_TOO_LONG", Message: "Input exceeds maximum length"}
+	ErrRateLimitExceeded  = &WebsocketError{Code: "RATE_LIMIT", Message: "Input rate limit exceeded"}
+)
+
+type WebsocketError struct {
+	Code    string
+	Message string
+}
+
+func (e *WebsocketError) Error() string {
+	return e.Message
+}
+
+// RateLimiter tracks input rate per connection
+type RateLimiter struct {
+	mu         sync.Mutex
+	timestamps []time.Time
+}
+
+func NewRateLimiter() *RateLimiter {
+	return &RateLimiter{
+		timestamps: make([]time.Time, 0, config.Config.InputRateLimit),
+	}
+}
+
+func (rl *RateLimiter) Allow() bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	now := time.Now()
+	windowStart := now.Add(-time.Second)
+
+	// Remove old timestamps
+	valid := rl.timestamps[:0]
+	for _, t := range rl.timestamps {
+		if t.After(windowStart) {
+			valid = append(valid, t)
+		}
+	}
+	rl.timestamps = valid
+
+	// Check rate limit
+	if len(rl.timestamps) >= config.Config.InputRateLimit {
+		return false
+	}
+
+	rl.timestamps = append(rl.timestamps, now)
+	return true
+}
+
+// ConnectionManager for tracking active connections
+type ConnectionManager struct {
+	mu          sync.Mutex
+	connections map[*websocket.Conn]struct{}
+	count       int
+}
+
+var connManager = &ConnectionManager{
+	connections: make(map[*websocket.Conn]struct{}),
+}
+
+func (cm *ConnectionManager) Add(conn *websocket.Conn) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	if cm.count >= config.Config.MaxConcurrentConnections {
+		return ErrTooManyConnections
+	}
+
+	cm.connections[conn] = struct{}{}
+	cm.count++
+	return nil
+}
+
+func (cm *ConnectionManager) Remove(conn *websocket.Conn) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	if _, exists := cm.connections[conn]; exists {
+		delete(cm.connections, conn)
+		cm.count--
+	}
+}
+
 func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
+		ReadBufferSize:   config.Config.ReadBufferSize,
+		WriteBufferSize:  config.Config.WriteBufferSize,
+		HandshakeTimeout: config.Config.WSWriteTimeout,
 		CheckOrigin: func(r *http.Request) bool {
+			// TODO: In production, validate against ALLOWED_ORIGINS
 			return true
 		},
 	}
@@ -26,8 +119,22 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	// Track connection
+	if err := connManager.Add(conn); err != nil {
+		sendError(conn, err.Error())
+		return
+	}
+	defer connManager.Remove(conn)
+
+	// Set read limit
+	conn.SetReadLimit(config.Config.MaxMessageSize)
+
+	// Set initial read deadline
+	conn.SetReadDeadline(time.Now().Add(config.Config.WSReadTimeout))
+
 	var sshClient *ssh.Client
 	var sshSession *ssh.Session
+	rateLimiter := NewRateLimiter()
 
 	defer func() {
 		if sshSession != nil {
@@ -38,13 +145,26 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for {
+		// Reset read deadline for each message
+		conn.SetReadDeadline(time.Now().Add(config.Config.WSReadTimeout))
+
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("WebSocket error: %v", err)
 			}
 			break
+		}
+
+		// Check message size
+		if int64(len(msg)) > config.Config.MaxMessageSize {
+			sendError(conn, ErrMessageTooLarge.Error())
+			continue
 		}
 
 		var message Message
@@ -58,6 +178,28 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 			var data ConnectData
 			if err := json.Unmarshal(message.Data, &data); err != nil {
 				sendError(conn, "Invalid connect data")
+				continue
+			}
+
+			// Validate input lengths
+			if len(data.Host) > config.Config.MaxHostLength {
+				sendError(conn, "Host too long")
+				continue
+			}
+			if len(data.Username) > config.Config.MaxUsernameLength {
+				sendError(conn, "Username too long")
+				continue
+			}
+			if len(data.Password) > config.Config.MaxPasswordLength {
+				sendError(conn, "Password too long")
+				continue
+			}
+			if len(data.PrivateKey) > config.Config.MaxKeyLength {
+				sendError(conn, "Private key too long")
+				continue
+			}
+			if data.Port < config.Config.MinPort || data.Port > config.Config.MaxPort {
+				sendError(conn, "Invalid port number")
 				continue
 			}
 
@@ -85,7 +227,7 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 			sendConnected(conn, true)
 
 			// Start reading output in goroutine
-			go readOutput(sshSession, conn)
+			go readOutput(ctx, sshSession, conn)
 
 		case TypeInput:
 			if sshSession != nil {
@@ -93,7 +235,23 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 				if err := json.Unmarshal(message.Data, &data); err != nil {
 					continue
 				}
-				sshSession.Write([]byte(data.Input))
+
+				// Validate input length
+				if len(data.Input) > config.Config.MaxInputLength {
+					sendError(conn, ErrInputTooLong.Error())
+					continue
+				}
+
+				// Rate limiting
+				if !rateLimiter.Allow() {
+					sendError(conn, ErrRateLimitExceeded.Error())
+					continue
+				}
+
+				if err := sshSession.Write([]byte(data.Input)); err != nil {
+					log.Printf("Failed to write to session: %v", err)
+					break
+				}
 			}
 
 		case TypeResize:
@@ -102,36 +260,47 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 				if err := json.Unmarshal(message.Data, &data); err != nil {
 					continue
 				}
-				sshSession.Resize(data.Cols, data.Rows)
+
+				// Validate resize values (reasonable limits)
+				if data.Cols < 1 || data.Cols > 1000 || data.Rows < 1 || data.Rows > 1000 {
+					continue
+				}
+
+				if err := sshSession.Resize(data.Cols, data.Rows); err != nil {
+					log.Printf("Failed to resize terminal: %v", err)
+				}
 			}
 		}
 	}
 }
 
-func readOutput(session *ssh.Session, conn *websocket.Conn) {
-	buf := make([]byte, 4096)
+func readOutput(ctx context.Context, session *ssh.Session, conn *websocket.Conn) {
+	buf := make([]byte, config.Config.ReadBufferSize)
+
 	for {
-		n, err := session.Read(buf)
-		if err != nil {
+		select {
+		case <-ctx.Done():
 			return
-		}
-		if n > 0 {
-			// Use BinaryMessage to preserve escape sequences exactly
-			// Make a copy of the data to avoid race conditions
-			data := make([]byte, n)
-			copy(data, buf[:n])
-			conn.WriteMessage(websocket.BinaryMessage, data)
+		default:
+			n, err := session.Read(buf)
+			if err != nil {
+				return
+			}
+			if n > 0 {
+				// Make a copy of the data to avoid race conditions
+				data := make([]byte, n)
+				copy(data, buf[:n])
+
+				// Set write deadline
+				conn.SetWriteDeadline(time.Now().Add(config.Config.WSWriteTimeout))
+
+				if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
+					log.Printf("Failed to write message: %v", err)
+					return
+				}
+			}
 		}
 	}
-}
-
-// Keep sendOutput for reference but not used
-func sendOutput(conn *websocket.Conn, output string) {
-	data, _ := json.Marshal(Message{
-		Type: TypeOutput,
-		Data: mustMarshal(OutputData{Output: output}),
-	})
-	conn.WriteMessage(websocket.TextMessage, data)
 }
 
 func sendError(conn *websocket.Conn, msg string) {
@@ -139,6 +308,7 @@ func sendError(conn *websocket.Conn, msg string) {
 		Type: TypeError,
 		Data: mustMarshal(ErrorData{Message: msg}),
 	})
+	conn.SetWriteDeadline(time.Now().Add(config.Config.WSWriteTimeout))
 	conn.WriteMessage(websocket.TextMessage, data)
 }
 
@@ -147,6 +317,7 @@ func sendConnected(conn *websocket.Conn, success bool) {
 		Type: TypeConnected,
 		Data: mustMarshal(ConnectedData{Success: success}),
 	})
+	conn.SetWriteDeadline(time.Now().Add(config.Config.WSWriteTimeout))
 	conn.WriteMessage(websocket.TextMessage, data)
 }
 

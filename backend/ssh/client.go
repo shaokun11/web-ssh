@@ -2,8 +2,11 @@ package ssh
 
 import (
 	"fmt"
+	"net"
 
 	"golang.org/x/crypto/ssh"
+
+	"backend/config"
 )
 
 type Client struct {
@@ -19,33 +22,62 @@ type Config struct {
 }
 
 func NewClient(cfg Config) (*Client, error) {
-	config := &ssh.ClientConfig{
+	// Input validation - prevent abuse
+	if len(cfg.Host) > config.Config.MaxHostLength {
+		return nil, fmt.Errorf("host too long (max %d)", config.Config.MaxHostLength)
+	}
+	if len(cfg.Username) > config.Config.MaxUsernameLength {
+		return nil, fmt.Errorf("username too long (max %d)", config.Config.MaxUsernameLength)
+	}
+	if len(cfg.Password) > config.Config.MaxPasswordLength {
+		return nil, fmt.Errorf("password too long (max %d)", config.Config.MaxPasswordLength)
+	}
+	if len(cfg.PrivateKey) > config.Config.MaxKeyLength {
+		return nil, fmt.Errorf("private key too long (max %d)", config.Config.MaxKeyLength)
+	}
+	if cfg.Port < config.Config.MinPort || cfg.Port > config.Config.MaxPort {
+		return nil, fmt.Errorf("invalid port number (must be %d-%d)", config.Config.MinPort, config.Config.MaxPort)
+	}
+
+	sshConfig := &ssh.ClientConfig{
 		User:            cfg.Username,
 		Auth:            []ssh.AuthMethod{},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		Timeout:         config.Config.SSHConnectTimeout,
 	}
 
 	// Add authentication methods
 	if cfg.Password != "" {
-		config.Auth = append(config.Auth, ssh.Password(cfg.Password))
+		sshConfig.Auth = append(sshConfig.Auth, ssh.Password(cfg.Password))
 	}
 	if cfg.PrivateKey != "" {
 		signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse private key: %w", err)
 		}
-		config.Auth = append(config.Auth, ssh.PublicKeys(signer))
+		sshConfig.Auth = append(sshConfig.Auth, ssh.PublicKeys(signer))
 	}
 
-	if len(config.Auth) == 0 {
+	if len(sshConfig.Auth) == 0 {
 		return nil, fmt.Errorf("no authentication method provided")
 	}
 
-	address := fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)
-	client, err := ssh.Dial("tcp", address, config)
+	// Format address properly (works with IPv6)
+	address := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
+
+	// Use DialTimeout for connection with timeout
+	conn, err := net.DialTimeout("tcp", address, config.Config.SSHConnectTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial: %w", err)
+		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
+
+	sshConn, chans, reqs, err := ssh.NewClientConn(conn, address, sshConfig)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to establish SSH connection: %w", err)
+	}
+
+	client := ssh.NewClient(sshConn, chans, reqs)
 
 	return &Client{client: client}, nil
 }
@@ -55,52 +87,4 @@ func (c *Client) Close() error {
 		return c.client.Close()
 	}
 	return nil
-}
-
-func (c *Client) NewSession() (*Session, error) {
-	session, err := c.client.NewSession()
-	if err != nil {
-		return nil, err
-	}
-
-	// Request PTY (pseudo-terminal) - essential for proper terminal emulation
-	// Using xterm-256color for full color support
-	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,     // Enable echo
-		ssh.TTY_OP_ISPEED: 14400, // Input speed = 14.4kbaud
-		ssh.TTY_OP_OSPEED: 14400, // Output speed = 14.4kbaud
-	}
-
-	// Request PTY with default size (will be resized later via WindowChange)
-	err = session.RequestPty("xterm-256color", 40, 120, modes)
-	if err != nil {
-		session.Close()
-		return nil, fmt.Errorf("failed to request PTY: %w", err)
-	}
-
-	stdin, err := session.StdinPipe()
-	if err != nil {
-		session.Close()
-		return nil, err
-	}
-
-	stdout, err := session.StdoutPipe()
-	if err != nil {
-		session.Close()
-		return nil, err
-	}
-
-	session.Stderr = session.Stdout
-
-	err = session.Shell()
-	if err != nil {
-		session.Close()
-		return nil, err
-	}
-
-	return &Session{
-		session: session,
-		stdin:   stdin,
-		stdout:  stdout,
-	}, nil
 }

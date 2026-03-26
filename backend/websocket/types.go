@@ -41,6 +41,7 @@ type OutputData struct {
 
 type ErrorData struct {
 	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
 }
 
 type ConnectedData struct {
