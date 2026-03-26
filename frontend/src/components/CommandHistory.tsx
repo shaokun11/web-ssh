@@ -6,9 +6,13 @@ import './CommandHistory.css';
 
 export function CommandHistory() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { activeConfigId, sessions, configs } = useConnectionStore();
+  const { activeSessionId, sessions, configs } = useConnectionStore();
   const { getDisplayHistory, loadAllHistory, clearHistory, setFilter, filterConfigId, loadHistory } = useHistoryStore();
   const { sidebarVisible, toggleSidebar } = usePreferencesStore();
+
+  // Get active session and its configId
+  const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
+  const activeConfigId = activeSession?.configId || null;
 
   // Load all history on mount
   useEffect(() => {
@@ -25,8 +29,7 @@ export function CommandHistory() {
   const history = getDisplayHistory(activeConfigId);
 
   // Get current session's WebSocket
-  const currentSession = activeConfigId ? sessions.get(activeConfigId) : null;
-  const ws = currentSession?.ws;
+  const ws = activeSession?.ws || null;
 
   const handleClick = (command: string) => {
     if (ws && ws.readyState === WebSocket.OPEN) {

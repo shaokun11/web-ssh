@@ -9,11 +9,16 @@ interface Props {
 
 export function Header({ onNewConnection }: Props) {
   const { theme, toggleTheme } = usePreferencesStore();
-  const { isConnected, currentConfig, disconnect } = useConnectionStore();
+  const { getAllSessions, disconnectAllSessions, getConfig } = useConnectionStore();
   const [showSettings, setShowSettings] = useState(false);
 
+  const sessions = getAllSessions();
+  const hasActiveSessions = sessions.length > 0;
+  const activeSession = sessions[0]; // Show first session info in header
+  const activeConfig = activeSession ? getConfig(activeSession.configId) : null;
+
   const handleDisconnect = () => {
-    disconnect();
+    disconnectAllSessions();
   };
 
   return (
@@ -25,13 +30,17 @@ export function Header({ onNewConnection }: Props) {
             <span className="logo-text">WebSSH</span>
           </div>
 
-          {isConnected && currentConfig && (
+          {hasActiveSessions && activeConfig && (
             <div className="connection-status">
               <span className="status-dot connected"></span>
-              <span className="connection-info">{currentConfig.name}</span>
-              <span className="connection-detail">
-                {currentConfig.username}@{currentConfig.host}
+              <span className="connection-info">
+                {sessions.length > 1 ? `${sessions.length} 个会话` : activeConfig.name}
               </span>
+              {sessions.length === 1 && (
+                <span className="connection-detail">
+                  {activeConfig.username}@{activeConfig.host}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -53,9 +62,9 @@ export function Header({ onNewConnection }: Props) {
             ⚙️
           </button>
 
-          {isConnected ? (
+          {hasActiveSessions ? (
             <button className="btn btn-danger" onClick={handleDisconnect}>
-              断开连接
+              断开全部
             </button>
           ) : (
             <button className="btn btn-primary" onClick={onNewConnection}>

@@ -14,7 +14,12 @@ function App() {
   const [showForm, setShowForm] = useState(false);
   const [formConfig, setFormConfig] = useState<SSHConfig | null>(null);
   const { theme } = usePreferencesStore();
-  const { loadConfigs, connect, updateSessionWs, updateSessionStatus, sessions } = useConnectionStore();
+  const {
+    loadConfigs,
+    createSession,
+    updateSessionStatus,
+    updateSessionWs
+  } = useConnectionStore();
 
   // Load configs on mount
   useEffect(() => {
@@ -29,14 +34,8 @@ function App() {
 
   // Connect to SSH server
   const connectToServer = useCallback((config: SSHConfig) => {
-    // Check if already connected
-    if (sessions.has(config.id)) {
-      // Already connected, just focus
-      return;
-    }
-
-    // Create new WebSocket connection using store's connect method
-    const ws = connect(config);
+    // Create new session (allows multiple sessions per config)
+    const { sessionId, ws } = createSession(config);
 
     ws.onopen = () => {
       // Send connect message
@@ -53,36 +52,39 @@ function App() {
     };
 
     ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'connected') {
-          if (msg.data?.success) {
-            updateSessionStatus(config.id, 'connected');
-            setShowForm(false);
-            setFormConfig(null);
+      // Only handle control messages here (binary is handled by TerminalContainer)
+      if (typeof event.data === 'string') {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'connected') {
+            if (msg.data?.success) {
+              updateSessionStatus(sessionId, 'connected');
+              setShowForm(false);
+              setFormConfig(null);
 
-            // Update last used time
-            db.configs.update(config.id, { lastUsedAt: new Date() });
+              // Update last used time
+              db.configs.update(config.id, { lastUsedAt: new Date() });
+            }
+          } else if (msg.type === 'error') {
+            console.error('SSH Error:', msg.data?.message);
+            updateSessionStatus(sessionId, 'disconnected');
           }
-        } else if (msg.type === 'error') {
-          console.error('SSH Error:', msg.data?.message);
-          updateSessionStatus(config.id, 'disconnected');
+        } catch {
+          // Ignore parse errors
         }
-      } catch {
-        // Ignore parse errors
       }
     };
 
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);
-      updateSessionStatus(config.id, 'disconnected');
+      updateSessionStatus(sessionId, 'disconnected');
     };
 
     ws.onclose = () => {
-      updateSessionStatus(config.id, 'disconnected');
-      updateSessionWs(config.id, null);
+      updateSessionStatus(sessionId, 'disconnected');
+      updateSessionWs(sessionId, null);
     };
-  }, [connect, updateSessionStatus, updateSessionWs, sessions]);
+  }, [createSession, updateSessionStatus, updateSessionWs]);
 
   // Handle new connection from form
   const handleNewConnection = useCallback((config: SSHConfig) => {
@@ -108,11 +110,6 @@ function App() {
     setShowForm(true);
   }, []);
 
-  // Handle terminal container's new connection request
-  const handleTerminalNewConnection = useCallback(() => {
-    handleCreateNewConnection();
-  }, [handleCreateNewConnection]);
-
   return (
     <div className="app" data-theme={theme}>
       <Header onNewConnection={handleCreateNewConnection} />
@@ -121,7 +118,7 @@ function App() {
         <ConnectionSidebar onConnect={handleReconnect} />
 
         <div className="main-content">
-          <TerminalContainer onNewConnection={handleTerminalNewConnection} />
+          <TerminalContainer onNewConnection={handleCreateNewConnection} />
           <VirtualKeyboard />
         </div>
 

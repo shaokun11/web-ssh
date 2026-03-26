@@ -28,9 +28,14 @@ const comboKeys: KeyButton[] = [
 ];
 
 export function VirtualKeyboard() {
-  const { ws, isConnected } = useConnectionStore();
+  const { activeSessionId, sessions } = useConnectionStore();
   const [ctrlHeld, setCtrlHeld] = useState(false);
   const [altHeld, setAltHeld] = useState(false);
+
+  // Get active session's WebSocket
+  const activeSession = activeSessionId ? sessions.get(activeSessionId) : null;
+  const ws = activeSession?.ws || null;
+  const isConnected = activeSession?.status === 'connected';
 
   const sendKey = (key: KeyButton) => {
     if (!ws || !isConnected) return;

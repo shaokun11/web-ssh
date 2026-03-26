@@ -9,7 +9,16 @@ interface Props {
 }
 
 export function ConnectionSidebar({ onConnect }: Props) {
-  const { configs, sessions, activeConfigId, loadConfigs, focusSession } = useConnectionStore();
+  const {
+    configs,
+    getAllSessions,
+    activeSessionId,
+    loadConfigs,
+    focusSession,
+    disconnectSession,
+    createSession
+  } = useConnectionStore();
+
   const [editingConfig, setEditingConfig] = useState<SSHConfig | null>(null);
   const [copyingConfig, setCopyingConfig] = useState<SSHConfig | null>(null);
 
@@ -17,27 +26,51 @@ export function ConnectionSidebar({ onConnect }: Props) {
     loadConfigs();
   }, [loadConfigs]);
 
-  // Get active session configs
-  const activeConfigs = configs.filter(c => sessions.has(c.id));
-  const savedConfigs = configs.filter(c => !sessions.has(c.id));
+  // Get all active sessions
+  const allSessions = getAllSessions();
 
-  const handleSelectConnection = async (config: SSHConfig) => {
-    // If already connected, just focus the session
-    if (sessions.has(config.id)) {
-      focusSession(config.id);
+  // Group sessions by configId
+  const sessionsByConfigId = new Map<string, typeof allSessions>();
+  allSessions.forEach(session => {
+    const existing = sessionsByConfigId.get(session.configId) || [];
+    sessionsByConfigId.set(session.configId, [...existing, session]);
+  });
+
+  // Get configs with active sessions
+  const configsWithSessions = configs.filter(c => sessionsByConfigId.has(c.id));
+  // Get configs without active sessions
+  const configsWithoutSessions = configs.filter(c => !sessionsByConfigId.has(c.id));
+
+  // Handle clicking on an existing session
+  const handleSessionClick = (sessionId: string) => {
+    focusSession(sessionId);
+  };
+
+  // Handle clicking on a saved config (no active session)
+  const handleConfigClick = async (config: SSHConfig) => {
+    // Check if already has active sessions
+    const activeSessions = sessionsByConfigId.get(config.id);
+    if (activeSessions && activeSessions.length > 0) {
+      // Focus the most recent session
+      focusSession(activeSessions[0].id);
       return;
     }
 
     // Update last used time
     await db.configs.update(config.id, { lastUsedAt: new Date() });
 
-    // Trigger connection with this config
+    // Trigger new connection
     onConnect(config);
+  };
+
+  // Handle creating a new session for a config that already has sessions
+  const handleNewSession = (config: SSHConfig) => {
+    createSession(config);
   };
 
   const handleDeleteConfig = async (e: React.MouseEvent, configId: string) => {
     e.stopPropagation();
-    if (confirm('确定要删除这个连接配置吗？')) {
+    if (confirm('确定要删除这个连接配置吗？已连接的会话不会被关闭。')) {
       await db.configs.delete(configId);
       await loadConfigs();
     }
@@ -53,15 +86,30 @@ export function ConnectionSidebar({ onConnect }: Props) {
     setCopyingConfig(config);
   };
 
+  const handleDisconnectSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    disconnectSession(sessionId);
+  };
+
   const handleFormClose = () => {
     setEditingConfig(null);
     setCopyingConfig(null);
     loadConfigs();
   };
 
-  const getSessionStatus = (configId: string) => {
-    const session = sessions.get(configId);
-    return session?.status || 'disconnected';
+  const getSessionStatusIcon = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return '●';
+      case 'connecting':
+        return '◐';
+      default:
+        return '○';
+    }
+  };
+
+  const getSessionStatusClass = (status: string) => {
+    return `status-${status}`;
   };
 
   return (
@@ -72,45 +120,59 @@ export function ConnectionSidebar({ onConnect }: Props) {
         </div>
 
         {/* Active Connections Section */}
-        {activeConfigs.length > 0 && (
+        {configsWithSessions.length > 0 && (
           <div className="sidebar-section">
             <div className="sidebar-section-header">
               <span className="sidebar-section-icon">🔗</span>
               <span className="sidebar-section-title">活动连接</span>
-              <span className="sidebar-section-count">{activeConfigs.length}</span>
+              <span className="sidebar-section-count">{allSessions.length}</span>
             </div>
             <div className="connection-list">
-              {activeConfigs.map((config) => (
-                <div
-                  key={config.id}
-                  className={`connection-item ${activeConfigId === config.id ? 'active connected' : ''}`}
-                  onClick={() => handleSelectConnection(config)}
-                >
-                  <span className={`status-dot ${getSessionStatus(config.id)}`}></span>
-                  <div className="connection-item-info">
-                    <div className="connection-item-name">{config.name}</div>
-                    <div className="connection-item-detail">
-                      {config.username}@{config.host}:{config.port}
+              {configsWithSessions.map((config) => {
+                const sessions = sessionsByConfigId.get(config.id) || [];
+                return (
+                  <div key={config.id} className="config-sessions-group">
+                    {/* Config header with "new session" button */}
+                    <div className="config-sessions-header">
+                      <span className="config-name">{config.name}</span>
+                      <button
+                        className="btn-new-session"
+                        onClick={() => handleNewSession(config)}
+                        title="新建会话"
+                      >
+                        +
+                      </button>
                     </div>
+                    {/* Sessions for this config */}
+                    {sessions.map((session) => (
+                      <div
+                        key={session.id}
+                        className={`session-item ${activeSessionId === session.id ? 'active' : ''}`}
+                        onClick={() => handleSessionClick(session.id)}
+                      >
+                        <span className={`status-dot ${getSessionStatusClass(session.status)}`}>
+                          {getSessionStatusIcon(session.status)}
+                        </span>
+                        <div className="session-info">
+                          <div className="session-name">{session.tabName}</div>
+                          <div className="session-detail">
+                            {config.username}@{config.host}:{config.port}
+                          </div>
+                        </div>
+                        <div className="session-actions">
+                          <button
+                            className="session-action disconnect"
+                            onClick={(e) => handleDisconnectSession(e, session.id)}
+                            title="断开"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="connection-item-actions">
-                    <button
-                      className="connection-item-action edit"
-                      onClick={(e) => handleEditConfig(e, config)}
-                      title="编辑"
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      className="connection-item-action delete"
-                      onClick={(e) => handleDeleteConfig(e, config.id)}
-                      title="删除"
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -120,10 +182,10 @@ export function ConnectionSidebar({ onConnect }: Props) {
           <div className="sidebar-section-header">
             <span className="sidebar-section-icon">📋</span>
             <span className="sidebar-section-title">已保存</span>
-            <span className="sidebar-section-count">{savedConfigs.length}</span>
+            <span className="sidebar-section-count">{configsWithoutSessions.length}</span>
           </div>
 
-          {savedConfigs.length === 0 ? (
+          {configsWithoutSessions.length === 0 ? (
             <div className="empty-state">
               <span className="empty-icon">📡</span>
               <span className="empty-text">暂无保存的连接</span>
@@ -131,13 +193,13 @@ export function ConnectionSidebar({ onConnect }: Props) {
             </div>
           ) : (
             <div className="connection-list">
-              {savedConfigs.map((config) => (
+              {configsWithoutSessions.map((config) => (
                 <div
                   key={config.id}
-                  className={`connection-item ${activeConfigId === config.id ? 'active' : ''}`}
-                  onClick={() => handleSelectConnection(config)}
+                  className="connection-item"
+                  onClick={() => handleConfigClick(config)}
                 >
-                  <span className="status-dot disconnected"></span>
+                  <span className="status-dot disconnected">○</span>
                   <div className="connection-item-info">
                     <div className="connection-item-name">{config.name}</div>
                     <div className="connection-item-detail">

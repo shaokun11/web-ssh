@@ -2,11 +2,14 @@ import { create } from 'zustand';
 import type { SSHConfig } from '../db';
 import { db } from '../db';
 
+// Generate unique session ID
+const generateSessionId = () => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
 // Active session state
 export interface ActiveSession {
-  configId: string;
+  id: string;              // Unique session ID
+  configId: string;        // Reference to SSHConfig.id
   ws: WebSocket | null;
-  terminalBuffer: string;
   tabName: string;
   connectedAt: Date;
   status: 'connecting' | 'connected' | 'disconnected';
@@ -16,24 +19,23 @@ interface ConnectionState {
   // Saved configurations
   configs: SSHConfig[];
 
-  // Active sessions (configId -> session)
+  // Active sessions (sessionId -> session)
   sessions: Map<string, ActiveSession>;
-  activeConfigId: string | null;
 
-  // Legacy compatibility
-  get isConnected(): boolean;
-  get currentConfig(): SSHConfig | null;
-  get ws(): WebSocket | null;
+  // Track sessions per config (configId -> sessionIds[])
+  sessionsByConfig: Map<string, string[]>;
+
+  // Currently active session
+  activeSessionId: string | null;
 
   // Session actions
-  connect: (config: SSHConfig) => WebSocket;
-  disconnect: (configId?: string) => void;
-  disconnectAll: () => void;
-  focusSession: (configId: string) => void;
-  updateSessionStatus: (configId: string, status: ActiveSession['status']) => void;
-  updateSessionWs: (configId: string, ws: WebSocket | null) => void;
-  renameTab: (configId: string, name: string) => void;
-  duplicateSession: (configId: string) => Promise<WebSocket | null>;
+  createSession: (config: SSHConfig) => { sessionId: string; ws: WebSocket };
+  disconnectSession: (sessionId?: string) => void;
+  disconnectAllSessions: () => void;
+  focusSession: (sessionId: string) => void;
+  updateSessionStatus: (sessionId: string, status: ActiveSession['status']) => void;
+  updateSessionWs: (sessionId: string, ws: WebSocket | null) => void;
+  renameSession: (sessionId: string, name: string) => void;
 
   // Config actions
   loadConfigs: () => Promise<void>;
@@ -42,46 +44,33 @@ interface ConnectionState {
   removeConfig: (id: string) => void;
 
   // Getters
-  getActiveSessions: () => ActiveSession[];
-  getSession: (configId: string) => ActiveSession | undefined;
+  getActiveSession: () => ActiveSession | null;
+  getSession: (sessionId: string) => ActiveSession | undefined;
+  getSessionsForConfig: (configId: string) => ActiveSession[];
+  getAllSessions: () => ActiveSession[];
+
+  // Get config by ID
+  getConfig: (configId: string) => SSHConfig | undefined;
 }
 
 export const useConnectionStore = create<ConnectionState>((set, get) => ({
   configs: [],
   sessions: new Map(),
-  activeConfigId: null,
+  sessionsByConfig: new Map(),
+  activeSessionId: null,
 
-  // Legacy compatibility getters
-  get isConnected() {
-    const { sessions, activeConfigId } = get();
-    if (!activeConfigId) return false;
-    const session = sessions.get(activeConfigId);
-    return session?.status === 'connected';
-  },
-
-  get currentConfig() {
-    const { configs, activeConfigId } = get();
-    if (!activeConfigId) return null;
-    return configs.find(c => c.id === activeConfigId) || null;
-  },
-
-  get ws() {
-    const { sessions, activeConfigId } = get();
-    if (!activeConfigId) return null;
-    return sessions.get(activeConfigId)?.ws || null;
-  },
-
-  // Create new connection
-  connect: (config: SSHConfig) => {
+  // Create new session (allows multiple sessions per config)
+  createSession: (config: SSHConfig) => {
+    const sessionId = generateSessionId();
     const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
 
     // Create session
     const session: ActiveSession = {
+      id: sessionId,
       configId: config.id,
       ws,
-      terminalBuffer: '',
       tabName: config.name,
       connectedAt: new Date(),
       status: 'connecting',
@@ -89,16 +78,26 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 
     set((state) => {
       const newSessions = new Map(state.sessions);
-      newSessions.set(config.id, session);
-      return { sessions: newSessions, activeConfigId: config.id };
+      newSessions.set(sessionId, session);
+
+      // Update sessionsByConfig
+      const newSessionsByConfig = new Map(state.sessionsByConfig);
+      const existing = newSessionsByConfig.get(config.id) || [];
+      newSessionsByConfig.set(config.id, [...existing, sessionId]);
+
+      return {
+        sessions: newSessions,
+        sessionsByConfig: newSessionsByConfig,
+        activeSessionId: sessionId
+      };
     });
 
-    return ws;
+    return { sessionId, ws };
   },
 
-  // Disconnect a specific session or current session
-  disconnect: (configId?: string) => {
-    const targetId = configId || get().activeConfigId;
+  // Disconnect a specific session
+  disconnectSession: (sessionId?: string) => {
+    const targetId = sessionId || get().activeSessionId;
     if (!targetId) return;
 
     const session = get().sessions.get(targetId);
@@ -108,96 +107,89 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
 
     set((state) => {
       const newSessions = new Map(state.sessions);
+      const oldSession = newSessions.get(targetId);
       newSessions.delete(targetId);
-      const newActiveId = state.activeConfigId === targetId
+
+      // Update sessionsByConfig
+      const newSessionsByConfig = new Map(state.sessionsByConfig);
+      if (oldSession) {
+        const existing = newSessionsByConfig.get(oldSession.configId) || [];
+        newSessionsByConfig.set(
+          oldSession.configId,
+          existing.filter(id => id !== targetId)
+        );
+      }
+
+      // Update activeSessionId if needed
+      const newActiveId = state.activeSessionId === targetId
         ? (newSessions.size > 0 ? [...newSessions.keys()][0] : null)
-        : state.activeConfigId;
-      return { sessions: newSessions, activeConfigId: newActiveId };
+        : state.activeSessionId;
+
+      return {
+        sessions: newSessions,
+        sessionsByConfig: newSessionsByConfig,
+        activeSessionId: newActiveId
+      };
     });
   },
 
   // Disconnect all sessions
-  disconnectAll: () => {
+  disconnectAllSessions: () => {
     const { sessions } = get();
     sessions.forEach((session) => {
       if (session.ws) {
         session.ws.close();
       }
     });
-    set({ sessions: new Map(), activeConfigId: null });
+    set({
+      sessions: new Map(),
+      sessionsByConfig: new Map(),
+      activeSessionId: null
+    });
   },
 
   // Focus a specific session
-  focusSession: (configId: string) => {
+  focusSession: (sessionId: string) => {
     const { sessions } = get();
-    if (sessions.has(configId)) {
-      set({ activeConfigId: configId });
+    if (sessions.has(sessionId)) {
+      set({ activeSessionId: sessionId });
     }
   },
 
   // Update session status
-  updateSessionStatus: (configId: string, status: ActiveSession['status']) => {
+  updateSessionStatus: (sessionId: string, status: ActiveSession['status']) => {
     set((state) => {
-      const session = state.sessions.get(configId);
+      const session = state.sessions.get(sessionId);
       if (!session) return state;
 
       const newSessions = new Map(state.sessions);
-      newSessions.set(configId, { ...session, status });
+      newSessions.set(sessionId, { ...session, status });
       return { sessions: newSessions };
     });
   },
 
   // Update session WebSocket
-  updateSessionWs: (configId: string, ws: WebSocket | null) => {
+  updateSessionWs: (sessionId: string, ws: WebSocket | null) => {
     set((state) => {
-      const session = state.sessions.get(configId);
+      const session = state.sessions.get(sessionId);
       if (!session) return state;
 
       const newSessions = new Map(state.sessions);
-      newSessions.set(configId, { ...session, ws });
+      newSessions.set(sessionId, { ...session, ws });
       return { sessions: newSessions };
     });
   },
 
-  // Rename tab
-  renameTab: (configId: string, name: string) => {
+  // Rename session tab
+  renameSession: (sessionId: string, name: string) => {
     set((state) => {
-      const session = state.sessions.get(configId);
+      const session = state.sessions.get(sessionId);
       if (!session) return state;
 
       const newSessions = new Map(state.sessions);
-      newSessions.set(configId, { ...session, tabName: name });
+      newSessions.set(sessionId, { ...session, tabName: name });
       return { sessions: newSessions };
     });
-  },
-
-  // Duplicate session (create new connection with same config)
-  duplicateSession: async (configId: string) => {
-    const { configs, sessions } = get();
-    const config = configs.find(c => c.id === configId);
-    if (!config) return null;
-
-    // Check if already connected
-    if (sessions.has(configId)) {
-      // Create new config with timestamp
-      const newConfig: SSHConfig = {
-        ...config,
-        id: `${config.id}-${Date.now()}`,
-        name: `${config.name} (${new Date().toLocaleTimeString()})`,
-        createdAt: new Date(),
-      };
-
-      // Add to saved configs temporarily
-      set((state) => ({
-        configs: [newConfig, ...state.configs]
-      }));
-
-      // Connect with new config
-      const { connect } = get();
-      return connect(newConfig);
-    }
-
-    return null;
   },
 
   // Load configs from IndexedDB
@@ -224,13 +216,34 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     }));
   },
 
-  // Get all active sessions
-  getActiveSessions: () => {
-    return Array.from(get().sessions.values());
+  // Get active session
+  getActiveSession: () => {
+    const { sessions, activeSessionId } = get();
+    if (!activeSessionId) return null;
+    return sessions.get(activeSessionId) || null;
   },
 
   // Get specific session
-  getSession: (configId: string) => {
-    return get().sessions.get(configId);
+  getSession: (sessionId: string) => {
+    return get().sessions.get(sessionId);
+  },
+
+  // Get all sessions for a config
+  getSessionsForConfig: (configId: string) => {
+    const { sessions, sessionsByConfig } = get();
+    const sessionIds = sessionsByConfig.get(configId) || [];
+    return sessionIds
+      .map(id => sessions.get(id))
+      .filter((s): s is ActiveSession => s !== undefined);
+  },
+
+  // Get all sessions
+  getAllSessions: () => {
+    return Array.from(get().sessions.values());
+  },
+
+  // Get config by ID
+  getConfig: (configId: string) => {
+    return get().configs.find(c => c.id === configId);
   },
 }));

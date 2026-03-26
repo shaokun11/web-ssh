@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useConnectionStore } from '../../store/connectionStore';
+import { useConnectionStore, type ActiveSession } from '../../store/connectionStore';
 import './TabBar.css';
 
 interface TabBarProps {
@@ -7,12 +7,23 @@ interface TabBarProps {
 }
 
 export function TabBar({ onNewConnection }: TabBarProps) {
-  const { sessions, activeConfigId, focusSession, disconnect, renameTab, configs, duplicateSession } = useConnectionStore();
+  const {
+    getAllSessions,
+    activeSessionId,
+    focusSession,
+    disconnectSession,
+    renameSession,
+    createSession,
+    configs
+  } = useConnectionStore();
+
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const sessions = getAllSessions();
 
   // Close menu on outside click
   useEffect(() => {
@@ -33,88 +44,120 @@ export function TabBar({ onNewConnection }: TabBarProps) {
     }
   }, [editingId]);
 
-  const handleTabClick = (configId: string) => {
-    if (editingId !== configId) {
-      focusSession(configId);
+  const handleTabClick = (sessionId: string) => {
+    if (editingId !== sessionId) {
+      focusSession(sessionId);
     }
   };
 
-  const handleTabClose = (e: React.MouseEvent, configId: string) => {
+  const handleTabClose = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    disconnect(configId);
+    disconnectSession(sessionId);
   };
 
-  const handleMenuClick = (e: React.MouseEvent, configId: string) => {
+  const handleMenuClick = (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
-    setMenuOpenId(menuOpenId === configId ? null : configId);
+    setMenuOpenId(menuOpenId === sessionId ? null : sessionId);
   };
 
-  const handleRename = (configId: string) => {
-    const session = sessions.get(configId);
+  const handleRename = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
     if (session) {
-      setEditingId(configId);
+      setEditingId(sessionId);
       setEditName(session.tabName);
       setMenuOpenId(null);
     }
   };
 
-  const handleRenameSubmit = (configId: string) => {
+  const handleRenameSubmit = (sessionId: string) => {
     if (editName.trim()) {
-      renameTab(configId, editName.trim());
+      renameSession(sessionId, editName.trim());
     }
     setEditingId(null);
   };
 
-  const handleRenameKeyDown = (e: React.KeyboardEvent, configId: string) => {
+  const handleRenameKeyDown = (e: React.KeyboardEvent, sessionId: string) => {
     if (e.key === 'Enter') {
-      handleRenameSubmit(configId);
+      handleRenameSubmit(sessionId);
     } else if (e.key === 'Escape') {
       setEditingId(null);
     }
   };
 
-  const handleDuplicate = async (configId: string) => {
-    setMenuOpenId(null);
-    await duplicateSession(configId);
-  };
-
-  const handleCopyConnectionInfo = (configId: string) => {
-    const config = configs.find(c => c.id === configId);
-    if (config) {
-      const info = `${config.username}@${config.host}:${config.port}`;
-      navigator.clipboard.writeText(info);
+  const handleDuplicate = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      const config = configs.find(c => c.id === session.configId);
+      if (config) {
+        // Create new session with same config
+        createSession(config);
+      }
     }
     setMenuOpenId(null);
   };
 
-  const handleReconnect = (configId: string) => {
+  const handleCopyConnectionInfo = (sessionId: string) => {
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      const config = configs.find(c => c.id === session.configId);
+      if (config) {
+        const info = `${config.username}@${config.host}:${config.port}`;
+        navigator.clipboard.writeText(info);
+      }
+    }
+    setMenuOpenId(null);
+  };
+
+  const handleReconnect = (sessionId: string) => {
     // Disconnect current and trigger reconnect
-    disconnect(configId);
+    disconnectSession(sessionId);
     setMenuOpenId(null);
     // The parent will handle reconnection through sidebar click
   };
 
-  const sessionArray = Array.from(sessions.entries());
+  const getStatusDot = (status: ActiveSession['status']) => {
+    switch (status) {
+      case 'connected':
+        return '●';
+      case 'connecting':
+        return '◐';
+      case 'disconnected':
+        return '○';
+      default:
+        return '○';
+    }
+  };
+
+  const getStatusClass = (status: ActiveSession['status']) => {
+    return `status-${status}`;
+  };
+
+  // Sort sessions by connection time (most recent first)
+  const sortedSessions = [...sessions].sort(
+    (a, b) => new Date(b.connectedAt).getTime() - new Date(a.connectedAt).getTime()
+  );
 
   return (
     <div className="tab-bar">
       <div className="tab-bar-scroll">
-        {sessionArray.map(([configId, session]) => (
+        {sortedSessions.map((session) => (
           <div
-            key={configId}
-            className={`tab ${activeConfigId === configId ? 'active' : ''} ${session.status}`}
-            onClick={() => handleTabClick(configId)}
+            key={session.id}
+            className={`tab ${activeSessionId === session.id ? 'active' : ''} ${getStatusClass(session.status)}`}
+            onClick={() => handleTabClick(session.id)}
           >
-            <span className="tab-status-dot" data-status={session.status}></span>
-            {editingId === configId ? (
+            <span className={`tab-status-dot ${getStatusClass(session.status)}`}>
+              {getStatusDot(session.status)}
+            </span>
+            {editingId === session.id ? (
               <input
                 ref={inputRef}
                 type="text"
                 className="tab-rename-input"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
-                onBlur={() => handleRenameSubmit(configId)}
-                onKeyDown={(e) => handleRenameKeyDown(e, configId)}
+                onBlur={() => handleRenameSubmit(session.id)}
+                onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
               />
             ) : (
               <span className="tab-title">{session.tabName}</span>
@@ -122,14 +165,14 @@ export function TabBar({ onNewConnection }: TabBarProps) {
             <div className="tab-actions">
               <button
                 className="tab-menu-btn"
-                onClick={(e) => handleMenuClick(e, configId)}
+                onClick={(e) => handleMenuClick(e, session.id)}
                 title="更多操作"
               >
                 ⋮
               </button>
               <button
                 className="tab-close-btn"
-                onClick={(e) => handleTabClose(e, configId)}
+                onClick={(e) => handleTabClose(e, session.id)}
                 title="关闭"
               >
                 ×
@@ -137,18 +180,18 @@ export function TabBar({ onNewConnection }: TabBarProps) {
             </div>
 
             {/* Dropdown menu */}
-            {menuOpenId === configId && (
+            {menuOpenId === session.id && (
               <div className="tab-menu" ref={menuRef}>
-                <button onClick={() => handleRename(configId)}>
+                <button onClick={() => handleRename(session.id)}>
                   ✏️ 重命名
                 </button>
-                <button onClick={() => handleDuplicate(configId)}>
+                <button onClick={() => handleDuplicate(session.id)}>
                   📋 复制会话
                 </button>
-                <button onClick={() => handleCopyConnectionInfo(configId)}>
+                <button onClick={() => handleCopyConnectionInfo(session.id)}>
                   🔗 复制连接信息
                 </button>
-                <button onClick={() => handleReconnect(configId)}>
+                <button onClick={() => handleReconnect(session.id)}>
                   🔄 重新连接
                 </button>
               </div>
