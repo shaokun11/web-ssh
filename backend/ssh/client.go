@@ -3,6 +3,8 @@ package ssh
 import (
 	"fmt"
 	"net"
+	"os"
+	"strings"
 
 	"golang.org/x/crypto/ssh"
 
@@ -19,6 +21,27 @@ type Config struct {
 	Username   string
 	PrivateKey string
 	Password   string
+}
+
+var dockerDetectionFn = isRunningInDocker
+
+func normalizeHostForDial(host string) string {
+	if !dockerDetectionFn() {
+		return host
+	}
+
+	if strings.EqualFold(host, "localhost") || host == "127.0.0.1" || host == "::1" {
+		return "host.docker.internal"
+	}
+
+	return host
+}
+
+func isRunningInDocker() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	return false
 }
 
 func NewClient(cfg Config) (*Client, error) {
@@ -63,7 +86,8 @@ func NewClient(cfg Config) (*Client, error) {
 	}
 
 	// Format address properly (works with IPv6)
-	address := net.JoinHostPort(cfg.Host, fmt.Sprintf("%d", cfg.Port))
+	dialHost := normalizeHostForDial(cfg.Host)
+	address := net.JoinHostPort(dialHost, fmt.Sprintf("%d", cfg.Port))
 
 	// Use DialTimeout for connection with timeout
 	conn, err := net.DialTimeout("tcp", address, config.Config.SSHConnectTimeout)

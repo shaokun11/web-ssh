@@ -11,7 +11,8 @@
     position: fixed;
     left: -100%;
     top: 0;
-    height: 100vh;
+    bottom: 56px;
+    height: calc(100vh - 56px);
     z-index: 100;
     width: 280px !important;
     transition: left 0.3s ease;
@@ -30,7 +31,8 @@
     position: fixed;
     right: -260px;
     top: 0;
-    height: 100vh;
+    bottom: 56px;
+    height: calc(100vh - 56px);
     z-index: 100;
     width: 260px !important;
     transition: right 0.3s ease;
@@ -117,7 +119,7 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 56px;
     background: rgba(0, 0, 0, 0.5);
     z-index: 99;
   }
