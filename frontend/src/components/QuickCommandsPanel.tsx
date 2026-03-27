@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
@@ -52,9 +52,17 @@ const commandCategories = [
       { cmd: 'grep -r "text" .', descKey: 'Search text' },
       { cmd: 'cat file | head -20', descKey: 'View beginning' },
       { cmd: 'tail -f logfile', descKey: 'Real-time log' },
+      { cmd: 'tail -n 100 file', descKey: 'Last 100 lines' },
       { cmd: 'sed -i "s/old/new/g" file', descKey: 'Replace text' },
-      { cmd: "awk '{print $1}'", descKey: 'Extract field' },
+      { cmd: "awk '{print $1}' file", descKey: 'Extract field' },
       { cmd: 'sort file | uniq -c', descKey: 'Sort and count' },
+      { cmd: 'wc -l file', descKey: 'Count lines' },
+      { cmd: 'diff file1 file2', descKey: 'Compare files' },
+      { cmd: 'xargs -I {} cmd {}', descKey: 'Execute per line' },
+      { cmd: 'tr "a-z" "A-Z" < file', descKey: 'Transform case' },
+      { cmd: 'cut -d"," -f1 file', descKey: 'Cut by delimiter' },
+      { cmd: 'paste file1 file2', descKey: 'Merge files' },
+      { cmd: 'comm file1 file2', descKey: 'Compare sorted files' },
     ]
   },
   {
@@ -83,18 +91,122 @@ const commandCategories = [
       { cmd: 'gunzip file.gz', descKey: 'Gzip decompress' },
     ]
   },
+  {
+    id: 'docker',
+    nameKey: 'terminal.docker',
+    icon: '🐳',
+    commands: [
+      { cmd: 'docker ps', descKey: 'List running containers' },
+      { cmd: 'docker ps -a', descKey: 'List all containers' },
+      { cmd: 'docker images', descKey: 'List images' },
+      { cmd: 'docker pull image:tag', descKey: 'Pull image' },
+      { cmd: 'docker build -t name .', descKey: 'Build image' },
+      { cmd: 'docker run -d --name app image', descKey: 'Run container' },
+      { cmd: 'docker exec -it container sh', descKey: 'Enter container' },
+      { cmd: 'docker logs -f container', descKey: 'View logs' },
+      { cmd: 'docker stop container', descKey: 'Stop container' },
+      { cmd: 'docker rm container', descKey: 'Remove container' },
+      { cmd: 'docker rmi image', descKey: 'Remove image' },
+      { cmd: 'docker-compose up -d', descKey: 'Start compose' },
+      { cmd: 'docker-compose down', descKey: 'Stop compose' },
+      { cmd: 'docker-compose logs -f', descKey: 'Compose logs' },
+      { cmd: 'docker system prune -f', descKey: 'Clean up' },
+      { cmd: 'docker volume ls', descKey: 'List volumes' },
+      { cmd: 'docker network ls', descKey: 'List networks' },
+    ]
+  },
 ];
 
 interface QuickCommandsPanelProps {
   className?: string;
 }
 
+// Component for copyable command items with long press support
+interface CopyableCommandItemProps {
+  cmd: string;
+  desc: string;
+  onCopy: (cmd: string) => void;
+  isCopied: boolean;
+}
+
+function CopyableCommandItem({ cmd, desc, onCopy, isCopied }: CopyableCommandItemProps) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startPosRef = useRef<{ x: number; y: number } | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    startPosRef.current = { x: clientX, y: clientY };
+
+    timerRef.current = setTimeout(() => {
+      onCopy(cmd);
+    }, 500);
+  }, [cmd, onCopy]);
+
+  const handleEnd = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    clearTimer();
+
+    const clientX = 'changedTouches' in e && e.changedTouches[0]
+      ? e.changedTouches[0].clientX
+      : (e as React.MouseEvent).clientX;
+    const clientY = 'changedTouches' in e && e.changedTouches[0]
+      ? e.changedTouches[0].clientY
+      : (e as React.MouseEvent).clientY;
+
+    if (startPosRef.current) {
+      const deltaX = Math.abs(clientX - startPosRef.current.x);
+      const deltaY = Math.abs(clientY - startPosRef.current.y);
+      if (deltaX < 10 && deltaY < 10) {
+        onCopy(cmd);
+      }
+    }
+    startPosRef.current = null;
+  }, [cmd, onCopy, clearTimer]);
+
+  const handleMove = useCallback(() => {
+    clearTimer();
+  }, [clearTimer]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      className={`command-item ${isCopied ? 'copied' : ''}`}
+      onMouseDown={handleStart}
+      onMouseUp={handleEnd}
+      onMouseLeave={handleMove}
+      onTouchStart={handleStart}
+      onTouchEnd={handleEnd}
+      onTouchMove={handleMove}
+      title={desc}
+    >
+      <code className="command-code">{cmd}</code>
+      <span className="command-desc">{desc}</span>
+      {isCopied && <span className="copy-feedback">✓</span>}
+    </div>
+  );
+}
+
 export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
   const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const { sessions, configs, activeSessionId } = useConnectionStore();
-  const { globalHistory, loadAllHistory, filterConfigId, setFilter, histories } = useHistoryStore();
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+  const { filterConfigId, setFilter, histories, globalHistory, loadAllHistory } = useHistoryStore();
+  const { configs, sessions, activeSessionId } = useConnectionStore();
 
   // Load history on mount
   useEffect(() => {
@@ -112,11 +224,15 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
 
   const recentCommands = getFilteredCommands();
 
-  const handleCommandClick = (cmd: string) => {
-    // Copy to clipboard
+  // Copy command to clipboard and show feedback (for tips)
+  const copyCommand = useCallback((cmd: string) => {
     navigator.clipboard.writeText(cmd);
+    setCopiedCmd(cmd);
+    setTimeout(() => setCopiedCmd(null), 1500);
+  }, []);
 
-    // Send to currently active session (the selected tab)
+  // Execute command in terminal (for history)
+  const executeCommand = useCallback((cmd: string) => {
     if (activeSessionId) {
       const session = sessions.get(activeSessionId);
       if (session?.status === 'connected' && session?.ws && session.ws.readyState === WebSocket.OPEN) {
@@ -126,10 +242,10 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
         }));
       }
     }
-  };
+  }, [activeSessionId, sessions]);
 
   return (
-        <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
+    <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
       <div className="quick-commands-header">
         {!isCollapsed && <span className="quick-commands-title">{t('terminal.quickCommands')}</span>}
         <button
@@ -171,7 +287,7 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
                   <div
                     key={item.id || idx}
                     className="history-item"
-                    onClick={() => handleCommandClick(item.command)}
+                    onClick={() => executeCommand(item.command)}
                     title={item.command}
                   >
                     <code className="history-command">{item.command}</code>
@@ -201,15 +317,13 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
                 {activeCategory === category.id && (
                   <div className="category-commands">
                     {category.commands.map((item, idx) => (
-                      <div
+                      <CopyableCommandItem
                         key={idx}
-                        className="command-item"
-                        onClick={() => handleCommandClick(item.cmd)}
-                        title={item.descKey}
-                      >
-                        <code className="command-code">{item.cmd}</code>
-                        <span className="command-desc">{item.descKey}</span>
-                      </div>
+                        cmd={item.cmd}
+                        desc={item.descKey}
+                        onCopy={copyCommand}
+                        isCopied={copiedCmd === item.cmd}
+                      />
                     ))}
                   </div>
                 )}

@@ -14,6 +14,8 @@ type SecurityConfig struct {
 	WSReadTimeout       time.Duration
 	WSWriteTimeout      time.Duration
 	WSHandshakeTimeout  time.Duration
+	WSPingInterval      time.Duration
+	WSPongWait          time.Duration
 
 	// Resource limits
 	MaxConcurrentConnections int
@@ -43,6 +45,8 @@ func DefaultConfig() *SecurityConfig {
 		WSReadTimeout:       getEnvDuration("WS_READ_TIMEOUT", 60*time.Second),
 		WSWriteTimeout:      getEnvDuration("WS_WRITE_TIMEOUT", 10*time.Second),
 		WSHandshakeTimeout:  getEnvDuration("WS_HANDSHAKE_TIMEOUT", 10*time.Second),
+		WSPingInterval:      getEnvDuration("WS_PING_INTERVAL", 30*time.Second), // Send ping every 30s
+		WSPongWait:          getEnvDuration("WS_PONG_WAIT", 60*time.Second),      // Wait 60s for pong response,
 
 		// Resource limits
 		MaxConcurrentConnections: getEnvInt("MAX_CONNECTIONS", 100),

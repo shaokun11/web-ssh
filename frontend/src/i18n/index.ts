@@ -8,7 +8,7 @@ const enTranslations = {
     title: 'Web SSH',
     welcome: 'Welcome to Web SSH',
     privacyNotice: 'All data is stored locally in your browser',
-    newConnection: '+ New Connection',
+    newConnection: 'New Connection',
   },
   header: {
     sshConnection: 'SSH Connection',
@@ -79,7 +79,7 @@ const zhTranslations = {
     title: 'Web SSH',
     welcome: '欢迎使用 Web SSH',
     privacyNotice: '所有数据均保存在本地浏览器，不会上传到任何服务器',
-    newConnection: '+ 新建连接',
+    newConnection: '新建连接',
   },
   header: {
     sshConnection: 'SSH 连接',

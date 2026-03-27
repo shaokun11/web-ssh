@@ -298,6 +298,55 @@
   text-overflow: ellipsis;
 }
 
+/* Copy feedback */
+.command-item {
+  position: relative;
+}
+
+.command-item.copied {
+  background: rgba(80, 250, 123, 0.15);
+  border: 1px solid var(--color-green);
+}
+
+.copy-feedback {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--color-green);
+  background: var(--bg-primary);
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeInOut 1.5s ease;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-50%) scale(0.5); }
+  20% { opacity: 1; transform: translateY(-50%) scale(1); }
+  80% { opacity: 1; transform: translateY(-50%) scale(1); }
+  100% { opacity: 0; transform: translateY(-50%) scale(0.5); }
+}
+
+/* Long press visual feedback */
+.command-item:active {
+  background: var(--bg-hover);
+  transform: scale(0.98);
+}
+
+.command-item.copied .command-code {
+  color: var(--color-green);
+}
+
+.command-item.copied .command-desc {
+  color: var(--color-green);
+  opacity: 0.8;
+}
+
 .history-list::-webkit-scrollbar {
   width: 4px;
 }

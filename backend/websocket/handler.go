@@ -126,11 +126,18 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	}
 	defer connManager.Remove(conn)
 
-	// Set read limit
 	conn.SetReadLimit(config.Config.MaxMessageSize)
 
-	// Set initial read deadline
-	conn.SetReadDeadline(time.Now().Add(config.Config.WSReadTimeout))
+	// Setup pong handler to extend read deadline
+	conn.SetReadDeadline(time.Now().Add(config.Config.WSPongWait))
+	conn.SetPongHandler(func(string) error {
+		conn.SetReadDeadline(time.Now().Add(config.Config.WSPongWait))
+		return nil
+	})
+
+	// Start ping ticker to keep connection alive
+	pingTicker := time.NewTicker(config.Config.WSPingInterval)
+	defer pingTicker.Stop()
 
 	var sshClient *ssh.Client
 	var sshSession *ssh.Session
@@ -149,10 +156,22 @@ func HandleTerminal(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	for {
-		// Reset read deadline for each message
-		conn.SetReadDeadline(time.Now().Add(config.Config.WSReadTimeout))
+	// Start ping ticker goroutine
+	go func() {
+		for {
+			select {
+			case <-pingTicker.C:
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(config.Config.WSWriteTimeout)); err != nil {
+					log.Printf("Failed to send ping: %v", err)
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
 
+	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {

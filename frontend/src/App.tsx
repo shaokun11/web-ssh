@@ -120,11 +120,7 @@ function App() {
 
   return (
     <div className="app" data-theme={theme}>
-      <Header
-        onNewConnection={handleCreateNewConnection}
-        onToggleSidebar={() => setMobileSidebarOpen(!mobileSidebarOpen)}
-        onToggleQuickCommands={() => setMobileQuickCommandsOpen(!mobileQuickCommandsOpen)}
-      />
+      <Header onNewConnection={handleCreateNewConnection} />
 
       {/* Mobile overlay */}
       {(mobileSidebarOpen || mobileQuickCommandsOpen) && (
