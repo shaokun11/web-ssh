@@ -229,13 +229,16 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
     sendTerminalInput(cmd, true);
   }, [sendTerminalInput]);
 
-  // Handle quick command interactions (tips: copy only, shortcuts: copy + send input)
+  // Handle quick command interactions (tips: copy + send to terminal input, shortcuts: copy + send control input)
   const handleQuickCommandClick = useCallback((item: CommandItem) => {
     copyCommand(item.cmd);
 
     if (item.action === 'sendInput' && item.input) {
       sendTerminalInput(item.input);
+      return;
     }
+
+    sendTerminalInput(item.cmd);
   }, [copyCommand, sendTerminalInput]);
 
   const handleHistoryClick = useCallback((cmd: string) => {
