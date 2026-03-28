@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
@@ -157,80 +157,18 @@ interface QuickCommandsPanelProps {
   className?: string;
 }
 
-// Component for copyable command items with long press support
-interface CopyableCommandItemProps {
+interface CommandClickItemProps {
   cmd: string;
   desc: string;
-  onTrigger: () => void;
+  onClick: () => void;
   isCopied: boolean;
 }
 
-function CopyableCommandItem({ cmd, desc, onTrigger, isCopied }: CopyableCommandItemProps) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startPosRef = useRef<{ x: number; y: number } | null>(null);
-  const didTriggerRef = useRef(false);
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const handleStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    startPosRef.current = { x: clientX, y: clientY };
-    didTriggerRef.current = false;
-
-    timerRef.current = setTimeout(() => {
-      didTriggerRef.current = true;
-      onTrigger();
-    }, 500);
-  }, [onTrigger]);
-
-  const handleEnd = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    clearTimer();
-
-    const clientX = 'changedTouches' in e && e.changedTouches[0]
-      ? e.changedTouches[0].clientX
-      : (e as React.MouseEvent).clientX;
-    const clientY = 'changedTouches' in e && e.changedTouches[0]
-      ? e.changedTouches[0].clientY
-      : (e as React.MouseEvent).clientY;
-
-    if (startPosRef.current && !didTriggerRef.current) {
-      const deltaX = Math.abs(clientX - startPosRef.current.x);
-      const deltaY = Math.abs(clientY - startPosRef.current.y);
-      if (deltaX < 10 && deltaY < 10) {
-        onTrigger();
-      }
-    }
-    startPosRef.current = null;
-    didTriggerRef.current = false;
-  }, [onTrigger, clearTimer]);
-
-  const handleMove = useCallback(() => {
-    clearTimer();
-  }, [clearTimer]);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-    };
-  }, []);
-
+function CommandClickItem({ cmd, desc, onClick, isCopied }: CommandClickItemProps) {
   return (
     <div
       className={`command-item ${isCopied ? 'copied' : ''}`}
-      onMouseDown={handleStart}
-      onMouseUp={handleEnd}
-      onMouseLeave={handleMove}
-      onTouchStart={handleStart}
-      onTouchEnd={handleEnd}
-      onTouchMove={handleMove}
+      onClick={onClick}
       title={desc}
     >
       <code className="command-code">{cmd}</code>
@@ -286,22 +224,25 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
     }
   }, [activeSessionId, sessions]);
 
-  // Execute command in terminal (for history)
+  // Execute command in terminal
   const executeCommand = useCallback((cmd: string) => {
     sendTerminalInput(cmd, true);
   }, [sendTerminalInput]);
 
-  // Handle quick command interactions (copy by default, send input for shortcuts)
-  const handleQuickCommandTrigger = useCallback((item: CommandItem) => {
+  // Handle quick command interactions (tips: copy only, shortcuts: copy + send input)
+  const handleQuickCommandClick = useCallback((item: CommandItem) => {
+    copyCommand(item.cmd);
+
     if (item.action === 'sendInput' && item.input) {
       sendTerminalInput(item.input);
-      setCopiedCmd(item.cmd);
-      setTimeout(() => setCopiedCmd(null), 1500);
-      return;
     }
-
-    copyCommand(item.cmd);
   }, [copyCommand, sendTerminalInput]);
+
+  const handleHistoryClick = useCallback((cmd: string) => {
+    copyCommand(cmd);
+    executeCommand(cmd);
+  }, [copyCommand, executeCommand]);
+
 
   return (
     <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
@@ -346,10 +287,11 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
                   <div
                     key={item.id || idx}
                     className="history-item"
-                    onClick={() => executeCommand(item.command)}
+                    onClick={() => handleHistoryClick(item.command)}
                     title={item.command}
                   >
                     <code className="history-command">{item.command}</code>
+                    {copiedCmd === item.command && <span className="copy-feedback">✓</span>}
                   </div>
                 ))}
               </div>
@@ -376,11 +318,11 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
                 {activeCategory === category.id && (
                   <div className="category-commands">
                     {category.commands.map((item, idx) => (
-                      <CopyableCommandItem
+                      <CommandClickItem
                         key={idx}
                         cmd={item.cmd}
                         desc={t(item.descKey)}
-                        onTrigger={() => handleQuickCommandTrigger(item)}
+                        onClick={() => handleQuickCommandClick(item)}
                         isCopied={copiedCmd === item.cmd}
                       />
                     ))}

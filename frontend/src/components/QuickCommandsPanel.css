@@ -272,6 +272,7 @@
   cursor: pointer;
   transition: all var(--transition-fast);
   border-bottom: 1px solid var(--border-color);
+  position: relative;
 }
 
 .history-item:last-child {
