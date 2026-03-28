@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
@@ -183,7 +183,8 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
-  const { filterConfigId, setFilter, histories, globalHistory, loadAllHistory } = useHistoryStore();
+  const copiedCmdTimeoutRef = useRef<number | null>(null);
+  const { filterConfigId, setFilter, getRecentCommands, loadAllHistory } = useHistoryStore();
   const { configs, sessions, activeSessionId } = useConnectionStore();
 
   // Load history on mount
@@ -191,22 +192,28 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
     loadAllHistory();
   }, [loadAllHistory]);
 
-  // Get filtered commands based on filterConfigId
-  const getFilteredCommands = () => {
-    if (filterConfigId === 'all' || filterConfigId === null) {
-      return globalHistory.slice(0, 20);
-    }
-    const filtered = histories.get(filterConfigId) || [];
-    return filtered.slice(0, 20);
-  };
+  const recentCommands = getRecentCommands(filterConfigId, 20);
 
-  const recentCommands = getFilteredCommands();
+  useEffect(() => {
+    return () => {
+      if (copiedCmdTimeoutRef.current !== null) {
+        window.clearTimeout(copiedCmdTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Copy command to clipboard and show feedback (for tips)
   const copyCommand = useCallback((cmd: string) => {
     navigator.clipboard.writeText(cmd);
     setCopiedCmd(cmd);
-    setTimeout(() => setCopiedCmd(null), 1500);
+
+    if (copiedCmdTimeoutRef.current !== null) {
+      window.clearTimeout(copiedCmdTimeoutRef.current);
+    }
+
+    copiedCmdTimeoutRef.current = window.setTimeout(() => {
+      setCopiedCmd(null);
+      copiedCmdTimeoutRef.current = null;
+    }, 1500);
   }, []);
 
   // Execute input in terminal

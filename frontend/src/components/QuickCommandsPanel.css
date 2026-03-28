@@ -144,6 +144,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all var(--transition-fast);
+  position: relative;
 }
 
 .command-item:hover {
@@ -152,6 +153,7 @@
 
 .command-item:active {
   background: var(--color-purple);
+  transform: scale(0.98);
 }
 
 .command-item:active .command-code,
@@ -301,11 +303,6 @@
   text-overflow: ellipsis;
 }
 
-/* Copy feedback */
-.command-item {
-  position: relative;
-}
-
 .command-item.copied {
   background: rgba(80, 250, 123, 0.15);
   border: 1px solid var(--color-green);
@@ -333,12 +330,6 @@
   20% { opacity: 1; transform: translateY(-50%) scale(1); }
   80% { opacity: 1; transform: translateY(-50%) scale(1); }
   100% { opacity: 0; transform: translateY(-50%) scale(0.5); }
-}
-
-/* Long press visual feedback */
-.command-item:active {
-  background: var(--bg-hover);
-  transform: scale(0.98);
 }
 
 .command-item.copied .command-code {
