@@ -4,7 +4,21 @@ import { useConnectionStore } from '../store/connectionStore';
 import { useHistoryStore } from '../store/historyStore';
 import './QuickCommandsPanel.css';
 
-const commandCategories = [
+interface CommandItem {
+  cmd: string;
+  descKey: string;
+  action?: 'copy' | 'sendInput';
+  input?: string;
+}
+
+interface CommandCategory {
+  id: string;
+  nameKey: string;
+  icon: string;
+  commands: CommandItem[];
+}
+
+const commandCategories: CommandCategory[] = [
   {
     id: 'files',
     nameKey: 'terminal.fileOperations',
@@ -115,6 +129,28 @@ const commandCategories = [
       { cmd: 'docker network ls', descKey: 'List networks' },
     ]
   },
+  {
+    id: 'shortcuts',
+    nameKey: 'terminal.shortcuts',
+    icon: '⌨️',
+    commands: [
+      { cmd: 'Ctrl + C', descKey: 'terminal.shortcutInterrupt', action: 'sendInput', input: '\u0003' },
+      { cmd: 'Ctrl + D', descKey: 'terminal.shortcutEOF', action: 'sendInput', input: '\u0004' },
+      { cmd: 'Ctrl + Z', descKey: 'terminal.shortcutSuspend', action: 'sendInput', input: '\u001a' },
+      { cmd: 'Ctrl + L', descKey: 'terminal.shortcutClearScreen', action: 'sendInput', input: '\u000c' },
+      { cmd: 'Ctrl + A', descKey: 'terminal.shortcutLineStart', action: 'sendInput', input: '\u0001' },
+      { cmd: 'Ctrl + E', descKey: 'terminal.shortcutLineEnd', action: 'sendInput', input: '\u0005' },
+      { cmd: 'Ctrl + U', descKey: 'terminal.shortcutDeleteBefore', action: 'sendInput', input: '\u0015' },
+      { cmd: 'Ctrl + K', descKey: 'terminal.shortcutDeleteAfter', action: 'sendInput', input: '\u000b' },
+      { cmd: 'Ctrl + W', descKey: 'terminal.shortcutDeleteWord', action: 'sendInput', input: '\u0017' },
+      { cmd: 'Tab', descKey: 'terminal.shortcutAutocomplete', action: 'sendInput', input: '\t' },
+      { cmd: 'Esc', descKey: 'terminal.shortcutEscape', action: 'sendInput', input: '\u001b' },
+      { cmd: '↑', descKey: 'terminal.shortcutPrevHistory', action: 'sendInput', input: '\u001b[A' },
+      { cmd: '↓', descKey: 'terminal.shortcutNextHistory', action: 'sendInput', input: '\u001b[B' },
+      { cmd: '←', descKey: 'terminal.shortcutCursorLeft', action: 'sendInput', input: '\u001b[D' },
+      { cmd: '→', descKey: 'terminal.shortcutCursorRight', action: 'sendInput', input: '\u001b[C' },
+    ]
+  },
 ];
 
 interface QuickCommandsPanelProps {
@@ -125,13 +161,14 @@ interface QuickCommandsPanelProps {
 interface CopyableCommandItemProps {
   cmd: string;
   desc: string;
-  onCopy: (cmd: string) => void;
+  onTrigger: () => void;
   isCopied: boolean;
 }
 
-function CopyableCommandItem({ cmd, desc, onCopy, isCopied }: CopyableCommandItemProps) {
+function CopyableCommandItem({ cmd, desc, onTrigger, isCopied }: CopyableCommandItemProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
+  const didTriggerRef = useRef(false);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -144,11 +181,13 @@ function CopyableCommandItem({ cmd, desc, onCopy, isCopied }: CopyableCommandIte
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     startPosRef.current = { x: clientX, y: clientY };
+    didTriggerRef.current = false;
 
     timerRef.current = setTimeout(() => {
-      onCopy(cmd);
+      didTriggerRef.current = true;
+      onTrigger();
     }, 500);
-  }, [cmd, onCopy]);
+  }, [onTrigger]);
 
   const handleEnd = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     clearTimer();
@@ -160,15 +199,16 @@ function CopyableCommandItem({ cmd, desc, onCopy, isCopied }: CopyableCommandIte
       ? e.changedTouches[0].clientY
       : (e as React.MouseEvent).clientY;
 
-    if (startPosRef.current) {
+    if (startPosRef.current && !didTriggerRef.current) {
       const deltaX = Math.abs(clientX - startPosRef.current.x);
       const deltaY = Math.abs(clientY - startPosRef.current.y);
       if (deltaX < 10 && deltaY < 10) {
-        onCopy(cmd);
+        onTrigger();
       }
     }
     startPosRef.current = null;
-  }, [cmd, onCopy, clearTimer]);
+    didTriggerRef.current = false;
+  }, [onTrigger, clearTimer]);
 
   const handleMove = useCallback(() => {
     clearTimer();
@@ -231,18 +271,37 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
     setTimeout(() => setCopiedCmd(null), 1500);
   }, []);
 
-  // Execute command in terminal (for history)
-  const executeCommand = useCallback((cmd: string) => {
-    if (activeSessionId) {
-      const session = sessions.get(activeSessionId);
-      if (session?.status === 'connected' && session?.ws && session.ws.readyState === WebSocket.OPEN) {
-        session.ws.send(JSON.stringify({
-          type: 'input',
-          data: { input: cmd + '\r' }
-        }));
-      }
+  // Execute input in terminal
+  const sendTerminalInput = useCallback((input: string, appendEnter = false) => {
+    if (!activeSessionId) {
+      return;
+    }
+
+    const session = sessions.get(activeSessionId);
+    if (session?.status === 'connected' && session?.ws && session.ws.readyState === WebSocket.OPEN) {
+      session.ws.send(JSON.stringify({
+        type: 'input',
+        data: { input: appendEnter ? input + '\r' : input }
+      }));
     }
   }, [activeSessionId, sessions]);
+
+  // Execute command in terminal (for history)
+  const executeCommand = useCallback((cmd: string) => {
+    sendTerminalInput(cmd, true);
+  }, [sendTerminalInput]);
+
+  // Handle quick command interactions (copy by default, send input for shortcuts)
+  const handleQuickCommandTrigger = useCallback((item: CommandItem) => {
+    if (item.action === 'sendInput' && item.input) {
+      sendTerminalInput(item.input);
+      setCopiedCmd(item.cmd);
+      setTimeout(() => setCopiedCmd(null), 1500);
+      return;
+    }
+
+    copyCommand(item.cmd);
+  }, [copyCommand, sendTerminalInput]);
 
   return (
     <aside className={`quick-commands-panel ${isCollapsed ? 'collapsed' : ''} ${className || ''}`}>
@@ -320,8 +379,8 @@ export function QuickCommandsPanel({ className }: QuickCommandsPanelProps) {
                       <CopyableCommandItem
                         key={idx}
                         cmd={item.cmd}
-                        desc={item.descKey}
-                        onCopy={copyCommand}
+                        desc={t(item.descKey)}
+                        onTrigger={() => handleQuickCommandTrigger(item)}
                         isCopied={copiedCmd === item.cmd}
                       />
                     ))}

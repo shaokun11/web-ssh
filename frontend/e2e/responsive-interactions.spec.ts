@@ -1,11 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test('responsive nav interactions behave correctly by viewport', async ({ page }) => {
+test('responsive nav interactions behave correctly by viewport', async ({ page }, testInfo) => {
   await page.goto('/');
 
   const mobileNav = page.locator('.mobile-nav');
+  const isMobileLayout = testInfo.project.name === 'mobile';
 
-  if (await mobileNav.isVisible()) {
+  if (isMobileLayout) {
+    await expect(mobileNav).toBeVisible();
+
     const connectionBtn = page.getByTestId('mobile-nav-connections');
     const commandsBtn = page.getByTestId('mobile-nav-commands');
 
@@ -37,6 +40,19 @@ test('responsive nav interactions behave correctly by viewport', async ({ page }
     await commandsBtn.click();
     await expect.poll(() => panelIntersectsViewport('.quick-commands-panel')).toBe(true);
     await expect.poll(() => panelIntersectsViewport('.sidebar')).toBe(false);
+
+    const shortcutsHeader = page.locator('.category-header', {
+      hasText: /Shortcuts|快捷按键/i,
+    });
+    await expect(shortcutsHeader).toBeVisible();
+    await shortcutsHeader.click();
+
+    const ctrlCShortcut = page.locator('.command-item', {
+      has: page.locator('.command-code', { hasText: 'Ctrl + C' }),
+    });
+    await expect(ctrlCShortcut).toBeVisible();
+    await ctrlCShortcut.click();
+    await expect(ctrlCShortcut.locator('.copy-feedback')).toBeVisible();
 
     const overlay = page.getByTestId('mobile-overlay');
     await expect(overlay).toBeVisible();
