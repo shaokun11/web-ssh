@@ -8,6 +8,8 @@
   height: 100%;
   overflow: hidden;
   transition: width var(--transition-normal);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .quick-commands-panel.collapsed {
