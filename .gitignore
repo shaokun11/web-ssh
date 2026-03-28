@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
 
+# Local worktrees
+.worktrees/
+
 # Build outputs
 backend/server
 backend/server.exe
