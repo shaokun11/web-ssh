@@ -24,3 +24,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# E2E artifacts
+frontend/test-results/
