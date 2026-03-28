@@ -4,6 +4,15 @@
    - Mobile: < 768px
 */
 
+:root {
+  --z-content: 1;
+  --z-overlay: 40;
+  --z-mobile-nav: 50;
+  --z-mobile-panel: 60;
+  --z-modal: 1000;
+  --mobile-nav-height: 56px;
+}
+
 /* ====== MOBILE STYLES (< 768px) ====== */
 @media (max-width: 767px) {
   /* Hide sidebars by default on mobile */
@@ -11,9 +20,10 @@
     position: fixed;
     left: -100%;
     top: 0;
-    bottom: 56px;
-    height: calc(100vh - 56px);
-    z-index: 100;
+    bottom: var(--mobile-nav-height);
+    height: calc(100vh - var(--mobile-nav-height));
+    height: calc(100dvh - var(--mobile-nav-height));
+    z-index: var(--z-mobile-panel);
     width: 280px !important;
     transition: left 0.3s ease;
   }
@@ -31,9 +41,10 @@
     position: fixed;
     right: -260px;
     top: 0;
-    bottom: 56px;
-    height: calc(100vh - 56px);
-    z-index: 100;
+    bottom: var(--mobile-nav-height);
+    height: calc(100vh - var(--mobile-nav-height));
+    height: calc(100dvh - var(--mobile-nav-height));
+    z-index: var(--z-mobile-panel);
     width: 260px !important;
     transition: right 0.3s ease;
   }
@@ -114,14 +125,15 @@
 
   /* Overlay for mobile sidebars */
   .mobile-overlay {
-    display: block;
+    display: block !important;
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    bottom: 56px;
+    bottom: var(--mobile-nav-height);
     background: rgba(0, 0, 0, 0.5);
-    z-index: 99;
+    z-index: var(--z-overlay);
+    pointer-events: auto;
   }
 }
 
@@ -222,11 +234,11 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 56px;
+  height: var(--mobile-nav-height);
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
   padding: 0 16px;
-  z-index: 50;
+  z-index: var(--z-mobile-nav);
   justify-content: space-around;
   align-items: center;
 }

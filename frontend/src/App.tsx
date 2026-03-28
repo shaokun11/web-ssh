@@ -124,7 +124,13 @@ function App() {
 
       {/* Mobile overlay */}
       {(mobileSidebarOpen || mobileQuickCommandsOpen) && (
-        <div className="mobile-overlay" onClick={handleOverlayClick} />
+        <div
+          className="mobile-overlay"
+          onClick={handleOverlayClick}
+          role="button"
+          aria-label="Close mobile panels"
+          data-testid="mobile-overlay"
+        />
       )}
 
       <main className="main">
@@ -149,6 +155,8 @@ function App() {
             setMobileSidebarOpen(!mobileSidebarOpen);
             setMobileQuickCommandsOpen(false);
           }}
+          aria-label={language === 'zh' ? '连接' : 'Connections'}
+          data-testid="mobile-nav-connections"
         >
           <span className="mobile-nav-btn-icon">📋</span>
           <span>{language === 'zh' ? '连接' : 'Connections'}</span>
@@ -163,6 +171,8 @@ function App() {
             setMobileQuickCommandsOpen(!mobileQuickCommandsOpen);
             setMobileSidebarOpen(false);
           }}
+          aria-label={language === 'zh' ? '命令' : 'Commands'}
+          data-testid="mobile-nav-commands"
         >
           <span className="mobile-nav-btn-icon">⚡</span>
           <span>{language === 'zh' ? '命令' : 'Commands'}</span>

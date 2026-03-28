@@ -11,10 +11,10 @@ export default defineConfig({
     video: 'retain-on-failure',
   },
   webServer: {
-    command: 'rtk npm --prefix frontend run preview -- --host 127.0.0.1 --port 4173',
-    cwd: '..',
+    command: 'npm run build && npm run preview -- --host 127.0.0.1 --port 4173',
+    cwd: '.',
     port: 4173,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [
